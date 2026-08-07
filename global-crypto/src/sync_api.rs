@@ -4,7 +4,7 @@
 //! a `&mut` reference to a crypto engine. The registry selects the best
 //! available provider automatically.
 
-use crate::driver::{CAP_AEAD, CAP_HASH, CAP_HMAC, CAP_DH, CAP_HKDF, CAP_CORDIC};
+use crate::driver::{CAP_AEAD, CAP_CORDIC, CAP_DH, CAP_HASH, CAP_HKDF, CAP_HMAC};
 use crate::registry::select_provider;
 use crate::types::*;
 use crate::CryptoError;
@@ -24,8 +24,8 @@ pub fn aead_encrypt<A: AeadAlgorithm>(
     aad: &[u8],
     tag: &mut Tag<A>,
 ) -> Result<(), CryptoError> {
-    let driver = select_provider(CAP_AEAD, |d| d.supports_aead(A::ID))
-        .ok_or(CryptoError::NoProvider)?;
+    let driver =
+        select_provider(CAP_AEAD, |d| d.supports_aead(A::ID)).ok_or(CryptoError::NoProvider)?;
 
     driver.aead_encrypt(
         A::ID,
@@ -48,8 +48,8 @@ pub fn aead_decrypt<A: AeadAlgorithm>(
     tag: &Tag<A>,
     aad: &[u8],
 ) -> Result<(), CryptoError> {
-    let driver = select_provider(CAP_AEAD, |d| d.supports_aead(A::ID))
-        .ok_or(CryptoError::NoProvider)?;
+    let driver =
+        select_provider(CAP_AEAD, |d| d.supports_aead(A::ID)).ok_or(CryptoError::NoProvider)?;
 
     driver.aead_decrypt(
         A::ID,
@@ -68,8 +68,8 @@ pub fn aead_decrypt<A: AeadAlgorithm>(
 /// Hash `data` using the globally-selected hash provider.
 #[inline]
 pub fn hash<A: HashAlgorithm>(data: &[u8]) -> Result<HashOutput<A>, CryptoError> {
-    let driver = select_provider(CAP_HASH, |d| d.supports_hash(A::ID))
-        .ok_or(CryptoError::NoProvider)?;
+    let driver =
+        select_provider(CAP_HASH, |d| d.supports_hash(A::ID)).ok_or(CryptoError::NoProvider)?;
 
     let mut out = HashOutput::<A>::zeroed();
     driver.hash(A::ID, data, out.as_bytes_mut())?;
@@ -83,8 +83,8 @@ pub fn hash<A: HashAlgorithm>(data: &[u8]) -> Result<HashOutput<A>, CryptoError>
 /// Compute HMAC over `data` using the globally-selected HMAC provider.
 #[inline]
 pub fn hmac<A: HmacAlgorithm>(key: &[u8], data: &[u8]) -> Result<HmacOutput<A>, CryptoError> {
-    let driver = select_provider(CAP_HMAC, |d| d.supports_hmac(A::ID))
-        .ok_or(CryptoError::NoProvider)?;
+    let driver =
+        select_provider(CAP_HMAC, |d| d.supports_hmac(A::ID)).ok_or(CryptoError::NoProvider)?;
 
     let mut out = HmacOutput::<A>::zeroed();
     driver.hmac(A::ID, key, data, out.as_bytes_mut())?;
@@ -97,17 +97,14 @@ pub fn hmac<A: HmacAlgorithm>(key: &[u8], data: &[u8]) -> Result<HmacOutput<A>, 
 
 /// Generate a new DH keypair using the globally-selected DH provider.
 #[inline]
-pub fn dh_generate_keypair<A: DhAlgorithm>() -> Result<(DhPublicKey<A>, DhSecretKey<A>), CryptoError> {
-    let driver = select_provider(CAP_DH, |d| d.supports_dh(A::ID))
-        .ok_or(CryptoError::NoProvider)?;
+pub fn dh_generate_keypair<A: DhAlgorithm>() -> Result<(DhPublicKey<A>, DhSecretKey<A>), CryptoError>
+{
+    let driver =
+        select_provider(CAP_DH, |d| d.supports_dh(A::ID)).ok_or(CryptoError::NoProvider)?;
 
     let mut pubkey = DhPublicKey::<A>::zeroed();
     let mut seckey = DhSecretKey::<A>::zeroed();
-    driver.dh_generate_keypair(
-        A::ID,
-        pubkey.as_bytes_mut(),
-        seckey.as_bytes_mut(),
-    )?;
+    driver.dh_generate_keypair(A::ID, pubkey.as_bytes_mut(), seckey.as_bytes_mut())?;
     Ok((pubkey, seckey))
 }
 
@@ -117,8 +114,8 @@ pub fn dh_shared_secret<A: DhAlgorithm>(
     seckey: &DhSecretKey<A>,
     pubkey: &DhPublicKey<A>,
 ) -> Result<DhSharedSecret<A>, CryptoError> {
-    let driver = select_provider(CAP_DH, |d| d.supports_dh(A::ID))
-        .ok_or(CryptoError::NoProvider)?;
+    let driver =
+        select_provider(CAP_DH, |d| d.supports_dh(A::ID)).ok_or(CryptoError::NoProvider)?;
 
     let mut out = DhSharedSecret::<A>::zeroed();
     driver.dh_shared_secret(
@@ -140,8 +137,8 @@ pub fn hkdf_extract<A: HmacAlgorithm>(
     salt: Option<&[u8]>,
     ikm: &[u8],
 ) -> Result<HmacOutput<A>, CryptoError> {
-    let driver = select_provider(CAP_HKDF, |d| d.supports_hkdf(A::ID))
-        .ok_or(CryptoError::NoProvider)?;
+    let driver =
+        select_provider(CAP_HKDF, |d| d.supports_hkdf(A::ID)).ok_or(CryptoError::NoProvider)?;
 
     let mut out = HmacOutput::<A>::zeroed();
     driver.hkdf_extract(A::ID, salt, ikm, out.as_bytes_mut())?;
@@ -155,8 +152,8 @@ pub fn hkdf_expand<A: HmacAlgorithm>(
     info: &[u8],
     okm: &mut [u8],
 ) -> Result<(), CryptoError> {
-    let driver = select_provider(CAP_HKDF, |d| d.supports_hkdf(A::ID))
-        .ok_or(CryptoError::NoProvider)?;
+    let driver =
+        select_provider(CAP_HKDF, |d| d.supports_hkdf(A::ID)).ok_or(CryptoError::NoProvider)?;
 
     driver.hkdf_expand(A::ID, prk.as_bytes(), info, okm)
 }
@@ -170,8 +167,8 @@ pub fn hkdf_expand<A: HmacAlgorithm>(
 pub fn cordic_compute<A: CordicAlgorithm>(
     input: &CordicInput<A>,
 ) -> Result<CordicOutput<A>, CryptoError> {
-    let driver = select_provider(CAP_CORDIC, |d| d.supports_cordic(A::ID))
-        .ok_or(CryptoError::NoProvider)?;
+    let driver =
+        select_provider(CAP_CORDIC, |d| d.supports_cordic(A::ID)).ok_or(CryptoError::NoProvider)?;
 
     let mut out = CordicOutput::<A>::zeroed();
     driver.cordic_compute(A::ID, input.as_bytes(), out.as_bytes_mut())?;

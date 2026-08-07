@@ -4,22 +4,25 @@
 //! implementations. All methods take `&self` and use interior mutability
 //! where needed (e.g. hardware register access).
 
-use crate::{AeadAlgorithmId, HashAlgorithmId, HmacAlgorithmId, DhAlgorithmId, CordicAlgorithmId, CryptoError};
+use crate::{
+    AeadAlgorithmId, CordicAlgorithmId, CryptoError, DhAlgorithmId, HashAlgorithmId,
+    HmacAlgorithmId,
+};
 
 // ------------------------------------------------------------------
 // Capability bitmask constants for ultra-fast provider filtering.
 // ------------------------------------------------------------------
 
 /// Capability bit: AEAD operations.
-pub const CAP_AEAD: u16   = 1 << 0;
+pub const CAP_AEAD: u16 = 1 << 0;
 /// Capability bit: Hash operations.
-pub const CAP_HASH: u16   = 1 << 1;
+pub const CAP_HASH: u16 = 1 << 1;
 /// Capability bit: HMAC operations.
-pub const CAP_HMAC: u16   = 1 << 2;
+pub const CAP_HMAC: u16 = 1 << 2;
 /// Capability bit: Diffie-Hellman operations.
-pub const CAP_DH: u16     = 1 << 3;
+pub const CAP_DH: u16 = 1 << 3;
 /// Capability bit: HKDF operations.
-pub const CAP_HKDF: u16   = 1 << 4;
+pub const CAP_HKDF: u16 = 1 << 4;
 /// Capability bit: CORDIC operations.
 pub const CAP_CORDIC: u16 = 1 << 5;
 

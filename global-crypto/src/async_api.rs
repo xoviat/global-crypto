@@ -92,7 +92,8 @@ pub async fn hmac<A: HmacAlgorithm>(key: &[u8], data: &[u8]) -> Result<HmacOutpu
 
 /// Async DH keypair generation.
 #[inline]
-pub async fn dh_generate_keypair<A: DhAlgorithm>() -> Result<(DhPublicKey<A>, DhSecretKey<A>), CryptoError> {
+pub async fn dh_generate_keypair<A: DhAlgorithm>(
+) -> Result<(DhPublicKey<A>, DhSecretKey<A>), CryptoError> {
     crate::sync_api::dh_generate_keypair::<A>()
 }
 

@@ -21,6 +21,7 @@ pub(crate) const MAX_AEAD_KEY: usize = 32;
 pub(crate) const MAX_AEAD_NONCE: usize = 13;
 pub(crate) const MAX_AEAD_TAG: usize = 16;
 pub(crate) const MAX_HASH_OUT: usize = 64;
+#[allow(dead_code)]
 pub(crate) const MAX_HMAC_KEY: usize = 128;
 pub(crate) const MAX_HMAC_OUT: usize = 64;
 pub(crate) const MAX_DH_PUBKEY: usize = 49;
@@ -305,7 +306,10 @@ impl<A: AeadAlgorithm> AeadKey<A> {
         }
         let mut arr = [0u8; MAX_AEAD_KEY];
         arr[..bytes.len()].copy_from_slice(bytes);
-        Ok(Self { bytes: arr, _phantom: PhantomData })
+        Ok(Self {
+            bytes: arr,
+            _phantom: PhantomData,
+        })
     }
     /// Access the raw key bytes (correctly sized slice).
     #[inline]
@@ -313,21 +317,31 @@ impl<A: AeadAlgorithm> AeadKey<A> {
         &self.bytes[..A::KEY_LEN]
     }
     /// Internal constructor that copies exactly `A::KEY_LEN` bytes.
+    #[allow(dead_code)]
     pub(crate) fn from_slice_unchecked(bytes: &[u8]) -> Self {
         let mut arr = [0u8; MAX_AEAD_KEY];
         arr[..bytes.len()].copy_from_slice(bytes);
-        Self { bytes: arr, _phantom: PhantomData }
+        Self {
+            bytes: arr,
+            _phantom: PhantomData,
+        }
     }
     /// Return a zeroed key (for driver output).
     #[inline]
     pub(crate) fn zeroed() -> Self {
-        Self { bytes: [0u8; MAX_AEAD_KEY], _phantom: PhantomData }
+        Self {
+            bytes: [0u8; MAX_AEAD_KEY],
+            _phantom: PhantomData,
+        }
     }
 }
 
 impl<A: AeadAlgorithm> Clone for AeadKey<A> {
     fn clone(&self) -> Self {
-        Self { bytes: self.bytes, _phantom: PhantomData }
+        Self {
+            bytes: self.bytes,
+            _phantom: PhantomData,
+        }
     }
 }
 
@@ -346,7 +360,10 @@ impl<A: AeadAlgorithm> Nonce<A> {
         }
         let mut arr = [0u8; MAX_AEAD_NONCE];
         arr[..bytes.len()].copy_from_slice(bytes);
-        Ok(Self { bytes: arr, _phantom: PhantomData })
+        Ok(Self {
+            bytes: arr,
+            _phantom: PhantomData,
+        })
     }
     #[inline]
     pub fn as_bytes(&self) -> &[u8] {
@@ -355,17 +372,26 @@ impl<A: AeadAlgorithm> Nonce<A> {
     pub(crate) fn from_slice_unchecked(bytes: &[u8]) -> Self {
         let mut arr = [0u8; MAX_AEAD_NONCE];
         arr[..bytes.len()].copy_from_slice(bytes);
-        Self { bytes: arr, _phantom: PhantomData }
+        Self {
+            bytes: arr,
+            _phantom: PhantomData,
+        }
     }
     #[inline]
     pub(crate) fn zeroed() -> Self {
-        Self { bytes: [0u8; MAX_AEAD_NONCE], _phantom: PhantomData }
+        Self {
+            bytes: [0u8; MAX_AEAD_NONCE],
+            _phantom: PhantomData,
+        }
     }
 }
 
 impl<A: AeadAlgorithm> Clone for Nonce<A> {
     fn clone(&self) -> Self {
-        Self { bytes: self.bytes, _phantom: PhantomData }
+        Self {
+            bytes: self.bytes,
+            _phantom: PhantomData,
+        }
     }
 }
 
@@ -384,7 +410,10 @@ impl<A: AeadAlgorithm> Tag<A> {
         }
         let mut arr = [0u8; MAX_AEAD_TAG];
         arr[..bytes.len()].copy_from_slice(bytes);
-        Ok(Self { bytes: arr, _phantom: PhantomData })
+        Ok(Self {
+            bytes: arr,
+            _phantom: PhantomData,
+        })
     }
     #[inline]
     pub fn as_bytes(&self) -> &[u8] {
@@ -397,17 +426,26 @@ impl<A: AeadAlgorithm> Tag<A> {
     pub(crate) fn from_slice_unchecked(bytes: &[u8]) -> Self {
         let mut arr = [0u8; MAX_AEAD_TAG];
         arr[..bytes.len()].copy_from_slice(bytes);
-        Self { bytes: arr, _phantom: PhantomData }
+        Self {
+            bytes: arr,
+            _phantom: PhantomData,
+        }
     }
     #[inline]
     pub(crate) fn zeroed() -> Self {
-        Self { bytes: [0u8; MAX_AEAD_TAG], _phantom: PhantomData }
+        Self {
+            bytes: [0u8; MAX_AEAD_TAG],
+            _phantom: PhantomData,
+        }
     }
 }
 
 impl<A: AeadAlgorithm> Clone for Tag<A> {
     fn clone(&self) -> Self {
-        Self { bytes: self.bytes, _phantom: PhantomData }
+        Self {
+            bytes: self.bytes,
+            _phantom: PhantomData,
+        }
     }
 }
 
@@ -426,7 +464,10 @@ impl<A: HashAlgorithm> HashOutput<A> {
         }
         let mut arr = [0u8; MAX_HASH_OUT];
         arr[..bytes.len()].copy_from_slice(bytes);
-        Ok(Self { bytes: arr, _phantom: PhantomData })
+        Ok(Self {
+            bytes: arr,
+            _phantom: PhantomData,
+        })
     }
     #[inline]
     pub fn as_bytes(&self) -> &[u8] {
@@ -439,17 +480,26 @@ impl<A: HashAlgorithm> HashOutput<A> {
     pub(crate) fn from_slice_unchecked(bytes: &[u8]) -> Self {
         let mut arr = [0u8; MAX_HASH_OUT];
         arr[..bytes.len()].copy_from_slice(bytes);
-        Self { bytes: arr, _phantom: PhantomData }
+        Self {
+            bytes: arr,
+            _phantom: PhantomData,
+        }
     }
     #[inline]
     pub(crate) fn zeroed() -> Self {
-        Self { bytes: [0u8; MAX_HASH_OUT], _phantom: PhantomData }
+        Self {
+            bytes: [0u8; MAX_HASH_OUT],
+            _phantom: PhantomData,
+        }
     }
 }
 
 impl<A: HashAlgorithm> Clone for HashOutput<A> {
     fn clone(&self) -> Self {
-        Self { bytes: self.bytes, _phantom: PhantomData }
+        Self {
+            bytes: self.bytes,
+            _phantom: PhantomData,
+        }
     }
 }
 
@@ -468,7 +518,10 @@ impl<A: HmacAlgorithm> HmacOutput<A> {
         }
         let mut arr = [0u8; MAX_HMAC_OUT];
         arr[..bytes.len()].copy_from_slice(bytes);
-        Ok(Self { bytes: arr, _phantom: PhantomData })
+        Ok(Self {
+            bytes: arr,
+            _phantom: PhantomData,
+        })
     }
     #[inline]
     pub fn as_bytes(&self) -> &[u8] {
@@ -481,17 +534,26 @@ impl<A: HmacAlgorithm> HmacOutput<A> {
     pub(crate) fn from_slice_unchecked(bytes: &[u8]) -> Self {
         let mut arr = [0u8; MAX_HMAC_OUT];
         arr[..bytes.len()].copy_from_slice(bytes);
-        Self { bytes: arr, _phantom: PhantomData }
+        Self {
+            bytes: arr,
+            _phantom: PhantomData,
+        }
     }
     #[inline]
     pub(crate) fn zeroed() -> Self {
-        Self { bytes: [0u8; MAX_HMAC_OUT], _phantom: PhantomData }
+        Self {
+            bytes: [0u8; MAX_HMAC_OUT],
+            _phantom: PhantomData,
+        }
     }
 }
 
 impl<A: HmacAlgorithm> Clone for HmacOutput<A> {
     fn clone(&self) -> Self {
-        Self { bytes: self.bytes, _phantom: PhantomData }
+        Self {
+            bytes: self.bytes,
+            _phantom: PhantomData,
+        }
     }
 }
 
@@ -510,7 +572,10 @@ impl<A: DhAlgorithm> DhPublicKey<A> {
         }
         let mut arr = [0u8; MAX_DH_PUBKEY];
         arr[..bytes.len()].copy_from_slice(bytes);
-        Ok(Self { bytes: arr, _phantom: PhantomData })
+        Ok(Self {
+            bytes: arr,
+            _phantom: PhantomData,
+        })
     }
     #[inline]
     pub fn as_bytes(&self) -> &[u8] {
@@ -523,17 +588,26 @@ impl<A: DhAlgorithm> DhPublicKey<A> {
     pub(crate) fn from_slice_unchecked(bytes: &[u8]) -> Self {
         let mut arr = [0u8; MAX_DH_PUBKEY];
         arr[..bytes.len()].copy_from_slice(bytes);
-        Self { bytes: arr, _phantom: PhantomData }
+        Self {
+            bytes: arr,
+            _phantom: PhantomData,
+        }
     }
     #[inline]
     pub(crate) fn zeroed() -> Self {
-        Self { bytes: [0u8; MAX_DH_PUBKEY], _phantom: PhantomData }
+        Self {
+            bytes: [0u8; MAX_DH_PUBKEY],
+            _phantom: PhantomData,
+        }
     }
 }
 
 impl<A: DhAlgorithm> Clone for DhPublicKey<A> {
     fn clone(&self) -> Self {
-        Self { bytes: self.bytes, _phantom: PhantomData }
+        Self {
+            bytes: self.bytes,
+            _phantom: PhantomData,
+        }
     }
 }
 
@@ -552,7 +626,10 @@ impl<A: DhAlgorithm> DhSecretKey<A> {
         }
         let mut arr = [0u8; MAX_DH_SECKEY];
         arr[..bytes.len()].copy_from_slice(bytes);
-        Ok(Self { bytes: arr, _phantom: PhantomData })
+        Ok(Self {
+            bytes: arr,
+            _phantom: PhantomData,
+        })
     }
     #[inline]
     pub fn as_bytes(&self) -> &[u8] {
@@ -565,17 +642,26 @@ impl<A: DhAlgorithm> DhSecretKey<A> {
     pub(crate) fn from_slice_unchecked(bytes: &[u8]) -> Self {
         let mut arr = [0u8; MAX_DH_SECKEY];
         arr[..bytes.len()].copy_from_slice(bytes);
-        Self { bytes: arr, _phantom: PhantomData }
+        Self {
+            bytes: arr,
+            _phantom: PhantomData,
+        }
     }
     #[inline]
     pub(crate) fn zeroed() -> Self {
-        Self { bytes: [0u8; MAX_DH_SECKEY], _phantom: PhantomData }
+        Self {
+            bytes: [0u8; MAX_DH_SECKEY],
+            _phantom: PhantomData,
+        }
     }
 }
 
 impl<A: DhAlgorithm> Clone for DhSecretKey<A> {
     fn clone(&self) -> Self {
-        Self { bytes: self.bytes, _phantom: PhantomData }
+        Self {
+            bytes: self.bytes,
+            _phantom: PhantomData,
+        }
     }
 }
 
@@ -594,7 +680,10 @@ impl<A: DhAlgorithm> DhSharedSecret<A> {
         }
         let mut arr = [0u8; MAX_DH_SHARED];
         arr[..bytes.len()].copy_from_slice(bytes);
-        Ok(Self { bytes: arr, _phantom: PhantomData })
+        Ok(Self {
+            bytes: arr,
+            _phantom: PhantomData,
+        })
     }
     #[inline]
     pub fn as_bytes(&self) -> &[u8] {
@@ -607,17 +696,26 @@ impl<A: DhAlgorithm> DhSharedSecret<A> {
     pub(crate) fn from_slice_unchecked(bytes: &[u8]) -> Self {
         let mut arr = [0u8; MAX_DH_SHARED];
         arr[..bytes.len()].copy_from_slice(bytes);
-        Self { bytes: arr, _phantom: PhantomData }
+        Self {
+            bytes: arr,
+            _phantom: PhantomData,
+        }
     }
     #[inline]
     pub(crate) fn zeroed() -> Self {
-        Self { bytes: [0u8; MAX_DH_SHARED], _phantom: PhantomData }
+        Self {
+            bytes: [0u8; MAX_DH_SHARED],
+            _phantom: PhantomData,
+        }
     }
 }
 
 impl<A: DhAlgorithm> Clone for DhSharedSecret<A> {
     fn clone(&self) -> Self {
-        Self { bytes: self.bytes, _phantom: PhantomData }
+        Self {
+            bytes: self.bytes,
+            _phantom: PhantomData,
+        }
     }
 }
 
@@ -636,7 +734,10 @@ impl<A: CordicAlgorithm> CordicInput<A> {
         }
         let mut arr = [0u8; MAX_CORDIC_IN];
         arr[..bytes.len()].copy_from_slice(bytes);
-        Ok(Self { bytes: arr, _phantom: PhantomData })
+        Ok(Self {
+            bytes: arr,
+            _phantom: PhantomData,
+        })
     }
     #[inline]
     pub fn as_bytes(&self) -> &[u8] {
@@ -649,17 +750,26 @@ impl<A: CordicAlgorithm> CordicInput<A> {
     pub(crate) fn from_slice_unchecked(bytes: &[u8]) -> Self {
         let mut arr = [0u8; MAX_CORDIC_IN];
         arr[..bytes.len()].copy_from_slice(bytes);
-        Self { bytes: arr, _phantom: PhantomData }
+        Self {
+            bytes: arr,
+            _phantom: PhantomData,
+        }
     }
     #[inline]
     pub(crate) fn zeroed() -> Self {
-        Self { bytes: [0u8; MAX_CORDIC_IN], _phantom: PhantomData }
+        Self {
+            bytes: [0u8; MAX_CORDIC_IN],
+            _phantom: PhantomData,
+        }
     }
 }
 
 impl<A: CordicAlgorithm> Clone for CordicInput<A> {
     fn clone(&self) -> Self {
-        Self { bytes: self.bytes, _phantom: PhantomData }
+        Self {
+            bytes: self.bytes,
+            _phantom: PhantomData,
+        }
     }
 }
 
@@ -678,7 +788,10 @@ impl<A: CordicAlgorithm> CordicOutput<A> {
         }
         let mut arr = [0u8; MAX_CORDIC_OUT];
         arr[..bytes.len()].copy_from_slice(bytes);
-        Ok(Self { bytes: arr, _phantom: PhantomData })
+        Ok(Self {
+            bytes: arr,
+            _phantom: PhantomData,
+        })
     }
     #[inline]
     pub fn as_bytes(&self) -> &[u8] {
@@ -691,17 +804,26 @@ impl<A: CordicAlgorithm> CordicOutput<A> {
     pub(crate) fn from_slice_unchecked(bytes: &[u8]) -> Self {
         let mut arr = [0u8; MAX_CORDIC_OUT];
         arr[..bytes.len()].copy_from_slice(bytes);
-        Self { bytes: arr, _phantom: PhantomData }
+        Self {
+            bytes: arr,
+            _phantom: PhantomData,
+        }
     }
     #[inline]
     pub(crate) fn zeroed() -> Self {
-        Self { bytes: [0u8; MAX_CORDIC_OUT], _phantom: PhantomData }
+        Self {
+            bytes: [0u8; MAX_CORDIC_OUT],
+            _phantom: PhantomData,
+        }
     }
 }
 
 impl<A: CordicAlgorithm> Clone for CordicOutput<A> {
     fn clone(&self) -> Self {
-        Self { bytes: self.bytes, _phantom: PhantomData }
+        Self {
+            bytes: self.bytes,
+            _phantom: PhantomData,
+        }
     }
 }
 
