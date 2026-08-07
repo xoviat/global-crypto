@@ -5,7 +5,8 @@
 //! currently delegate to the synchronous API; true async operation
 //! requires a separate async-capable registry (future work).
 
-use crate::{types::*, CryptoError};
+use crate::types::*;
+use crate::CryptoError;
 
 // ============================================================================
 // Async driver trait
@@ -54,6 +55,7 @@ pub trait AsyncCryptoDriver: crate::driver::CryptoDriver {
 // ============================================================================
 
 /// Async AEAD encryption.
+#[inline]
 pub async fn aead_encrypt<A: AeadAlgorithm>(
     key: &AeadKey<A>,
     nonce: &Nonce<A>,
@@ -65,33 +67,37 @@ pub async fn aead_encrypt<A: AeadAlgorithm>(
 }
 
 /// Async AEAD decryption.
+#[inline]
 pub async fn aead_decrypt<A: AeadAlgorithm>(
     key: &AeadKey<A>,
     nonce: &Nonce<A>,
     message: &mut [u8],
-    tag: &mut Tag<A>,
+    tag: &Tag<A>,
     aad: &[u8],
 ) -> Result<(), CryptoError> {
     crate::sync_api::aead_decrypt::<A>(key, nonce, message, tag, aad)
 }
 
 /// Async hash.
+#[inline]
 pub async fn hash<A: HashAlgorithm>(data: &[u8]) -> Result<HashOutput<A>, CryptoError> {
     crate::sync_api::hash::<A>(data)
 }
 
 /// Async HMAC.
+#[inline]
 pub async fn hmac<A: HmacAlgorithm>(key: &[u8], data: &[u8]) -> Result<HmacOutput<A>, CryptoError> {
     crate::sync_api::hmac::<A>(key, data)
 }
 
 /// Async DH keypair generation.
-pub async fn dh_generate_keypair<A: DhAlgorithm>(
-) -> Result<(DhPublicKey<A>, DhSecretKey<A>), CryptoError> {
+#[inline]
+pub async fn dh_generate_keypair<A: DhAlgorithm>() -> Result<(DhPublicKey<A>, DhSecretKey<A>), CryptoError> {
     crate::sync_api::dh_generate_keypair::<A>()
 }
 
 /// Async shared secret derivation.
+#[inline]
 pub async fn dh_shared_secret<A: DhAlgorithm>(
     seckey: &DhSecretKey<A>,
     pubkey: &DhPublicKey<A>,
@@ -100,6 +106,7 @@ pub async fn dh_shared_secret<A: DhAlgorithm>(
 }
 
 /// Async HKDF-Extract.
+#[inline]
 pub async fn hkdf_extract<A: HmacAlgorithm>(
     salt: Option<&[u8]>,
     ikm: &[u8],
@@ -108,10 +115,19 @@ pub async fn hkdf_extract<A: HmacAlgorithm>(
 }
 
 /// Async HKDF-Expand.
+#[inline]
 pub async fn hkdf_expand<A: HmacAlgorithm>(
     prk: &HmacOutput<A>,
     info: &[u8],
     okm: &mut [u8],
 ) -> Result<(), CryptoError> {
     crate::sync_api::hkdf_expand::<A>(prk, info, okm)
+}
+
+/// Async CORDIC computation.
+#[inline]
+pub async fn cordic_compute<A: CordicAlgorithm>(
+    input: &CordicInput<A>,
+) -> Result<CordicOutput<A>, CryptoError> {
+    crate::sync_api::cordic_compute::<A>(input)
 }

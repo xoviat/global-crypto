@@ -2,29 +2,106 @@
 
 //! Bridge crate: adapts any `embedded-cal::Cal` implementation to the
 //! `global_crypto::CryptoDriver` dyn-safe trait.
+//!
+//! This version uses an atomic spinlock instead of `critical_section`.
+//! It is intended for high-priority contexts where priority inversion
+//! cannot occur and where disabling all interrupts is unacceptable.
 
-use core::cell::RefCell;
-use critical_section::Mutex;
+use core::cell::UnsafeCell;
+use core::ops::{Deref, DerefMut};
+use core::sync::atomic::{AtomicBool, Ordering};
 use embedded_cal::{
     AadGenerator, AeadAlgorithm, AeadProvider as _, Cal, DhAlgorithm, DhProvider as _,
     HashAlgorithm, HashProvider as _, HkdfProvider as _, HmacAlgorithm, HmacProvider as _,
 };
+use global_crypto::driver::{CAP_AEAD, CAP_DH, CAP_HASH, CAP_HKDF, CAP_HMAC};
 use global_crypto::{
-    AeadAlgorithmId, CryptoDriver, CryptoError, DhAlgorithmId, HashAlgorithmId, HmacAlgorithmId,
+    AeadAlgorithmId, CordicAlgorithmId, CryptoDriver, CryptoError, DhAlgorithmId, HashAlgorithmId,
+    HmacAlgorithmId,
 };
+
+// ============================================================================
+// Spinlock (no critical_section, no interrupt disabling)
+// ============================================================================
+
+/// A simple atomic spinlock for `no_std` environments.
+///
+/// # Safety
+/// This must only be used in contexts where priority inversion cannot
+/// cause deadlock (e.g. a single high-priority thread, or cooperative
+/// scheduling). The lock spins with `compare_exchange_weak`.
+pub struct SpinLock<T> {
+    locked: AtomicBool,
+    data: UnsafeCell<T>,
+}
+
+unsafe impl<T: Send> Sync for SpinLock<T> {}
+
+impl<T> SpinLock<T> {
+    pub const fn new(data: T) -> Self {
+        Self {
+            locked: AtomicBool::new(false),
+            data: UnsafeCell::new(data),
+        }
+    }
+
+    /// Acquire the lock, spinning until available.
+    #[inline]
+    pub fn lock(&self) -> SpinLockGuard<T> {
+        while self
+            .locked
+            .compare_exchange_weak(false, true, Ordering::Acquire, Ordering::Relaxed)
+            .is_err()
+        {
+            // Spin. On single-core systems the compiler may optimize this
+            // to a simple retry loop because no other core can release it.
+            core::hint::spin_loop();
+        }
+        SpinLockGuard { lock: self }
+    }
+}
+
+/// RAII guard for `SpinLock`.
+pub struct SpinLockGuard<'a, T> {
+    lock: &'a SpinLock<T>,
+}
+
+impl<T> Deref for SpinLockGuard<'_, T> {
+    type Target = T;
+    #[inline]
+    fn deref(&self) -> &T {
+        // SAFETY: we hold the lock.
+        unsafe { &*self.lock.data.get() }
+    }
+}
+
+impl<T> DerefMut for SpinLockGuard<'_, T> {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut T {
+        // SAFETY: we hold the lock.
+        unsafe { &mut *self.lock.data.get() }
+    }
+}
+
+impl<T> Drop for SpinLockGuard<'_, T> {
+    #[inline]
+    fn drop(&mut self) {
+        self.lock.locked.store(false, Ordering::Release);
+    }
+}
 
 // ============================================================================
 // Bridge struct
 // ============================================================================
 
 pub struct EmbeddedCalBridge<C: Cal + Send> {
-    cal: Mutex<RefCell<C>>,
+    cal: SpinLock<C>,
 }
 
 impl<C: Cal + Send> EmbeddedCalBridge<C> {
     pub const fn new(cal: C) -> Self {
         Self {
-            cal: Mutex::new(RefCell::new(cal)),
+            cal: SpinLock::new(cal),
         }
     }
 }
@@ -46,6 +123,27 @@ impl<'a> AadGenerator for SingleAad<'a> {
 // ============================================================================
 
 impl<C: Cal + Send> CryptoDriver for EmbeddedCalBridge<C> {
+    // Return a pre-computed capability mask so the registry can skip
+    // slow per-algorithm probing at registration time.
+    fn capabilities(&self) -> u16 {
+        let mut cap = 0u16;
+
+        if map_aead_alg::<C>(AeadAlgorithmId::Aes128Gcm).is_ok() {
+            cap |= CAP_AEAD;
+        }
+        if map_hash_alg::<C>(HashAlgorithmId::Sha256).is_ok() {
+            cap |= CAP_HASH;
+        }
+        if map_hmac_alg::<C>(HmacAlgorithmId::HmacSha256).is_ok() {
+            cap |= CAP_HMAC | CAP_HKDF; // HKDF re-uses HMAC algorithms
+        }
+        if map_dh_alg::<C>(DhAlgorithmId::EcdhP256).is_ok() {
+            cap |= CAP_DH;
+        }
+
+        cap
+    }
+
     fn supports_aead(&self, alg: AeadAlgorithmId) -> bool {
         map_aead_alg::<C>(alg).is_ok()
     }
@@ -66,6 +164,10 @@ impl<C: Cal + Send> CryptoDriver for EmbeddedCalBridge<C> {
         map_hmac_alg::<C>(alg).is_ok()
     }
 
+    fn supports_cordic(&self, _alg: CordicAlgorithmId) -> bool {
+        false
+    }
+
     fn aead_encrypt(
         &self,
         alg: AeadAlgorithmId,
@@ -75,21 +177,19 @@ impl<C: Cal + Send> CryptoDriver for EmbeddedCalBridge<C> {
         aad: &[u8],
         tag_out: &mut [u8],
     ) -> Result<(), CryptoError> {
-        critical_section::with(|cs| {
-            let mut cal = self.cal.borrow(cs).borrow_mut();
-            let aead = cal.aead();
+        let mut cal = self.cal.lock();
+        let aead = cal.aead();
 
-            let alg = map_aead_alg::<C>(alg)?;
-            let rich_key = aead.load_from_keydata(alg, key);
-            let rich_tag = aead.encrypt_in_place(&rich_key, nonce, message, SingleAad(aad));
+        let alg = map_aead_alg::<C>(alg)?;
+        let rich_key = aead.load_from_keydata(alg, key);
+        let rich_tag = aead.encrypt_in_place(&rich_key, nonce, message, SingleAad(aad));
 
-            let tag_bytes = rich_tag.as_ref();
-            if tag_out.len() != tag_bytes.len() {
-                return Err(CryptoError::BufferTooSmall);
-            }
-            tag_out.copy_from_slice(tag_bytes);
-            Ok(())
-        })
+        let tag_bytes = rich_tag.as_ref();
+        if tag_out.len() != tag_bytes.len() {
+            return Err(CryptoError::BufferTooSmall);
+        }
+        tag_out.copy_from_slice(tag_bytes);
+        Ok(())
     }
 
     fn aead_decrypt(
@@ -101,32 +201,28 @@ impl<C: Cal + Send> CryptoDriver for EmbeddedCalBridge<C> {
         tag: &[u8],
         aad: &[u8],
     ) -> Result<(), CryptoError> {
-        critical_section::with(|cs| {
-            let mut cal = self.cal.borrow(cs).borrow_mut();
-            let aead = cal.aead();
+        let mut cal = self.cal.lock();
+        let aead = cal.aead();
 
-            let alg = map_aead_alg::<C>(alg)?;
-            let rich_key = aead.load_from_keydata(alg, key);
-            aead.decrypt_in_place(&rich_key, nonce, message, tag, SingleAad(aad))
-                .map_err(|_| CryptoError::DecryptionFailed)
-        })
+        let alg = map_aead_alg::<C>(alg)?;
+        let rich_key = aead.load_from_keydata(alg, key);
+        aead.decrypt_in_place(&rich_key, nonce, message, tag, SingleAad(aad))
+            .map_err(|_| CryptoError::DecryptionFailed)
     }
 
     fn hash(&self, alg: HashAlgorithmId, data: &[u8], out: &mut [u8]) -> Result<(), CryptoError> {
-        critical_section::with(|cs| {
-            let mut cal = self.cal.borrow(cs).borrow_mut();
-            let hash = cal.hash();
+        let mut cal = self.cal.lock();
+        let hash = cal.hash();
 
-            let alg = map_hash_alg::<C>(alg)?;
-            let result = hash.hash(alg, data);
-            let bytes = result.as_ref();
+        let alg = map_hash_alg::<C>(alg)?;
+        let result = hash.hash(alg, data);
+        let bytes = result.as_ref();
 
-            if out.len() != bytes.len() {
-                return Err(CryptoError::BufferTooSmall);
-            }
-            out.copy_from_slice(bytes);
-            Ok(())
-        })
+        if out.len() != bytes.len() {
+            return Err(CryptoError::BufferTooSmall);
+        }
+        out.copy_from_slice(bytes);
+        Ok(())
     }
 
     fn hmac(
@@ -136,20 +232,18 @@ impl<C: Cal + Send> CryptoDriver for EmbeddedCalBridge<C> {
         data: &[u8],
         out: &mut [u8],
     ) -> Result<(), CryptoError> {
-        critical_section::with(|cs| {
-            let mut cal = self.cal.borrow(cs).borrow_mut();
-            let hmac = cal.hmac();
+        let mut cal = self.cal.lock();
+        let hmac = cal.hmac();
 
-            let alg = map_hmac_alg::<C>(alg)?;
-            let result = hmac.hmac_with_keydata(alg, key, data);
-            let bytes = result.as_ref();
+        let alg = map_hmac_alg::<C>(alg)?;
+        let result = hmac.hmac_with_keydata(alg, key, data);
+        let bytes = result.as_ref();
 
-            if out.len() != bytes.len() {
-                return Err(CryptoError::BufferTooSmall);
-            }
-            out.copy_from_slice(bytes);
-            Ok(())
-        })
+        if out.len() != bytes.len() {
+            return Err(CryptoError::BufferTooSmall);
+        }
+        out.copy_from_slice(bytes);
+        Ok(())
     }
 
     fn dh_generate_keypair(
@@ -158,35 +252,32 @@ impl<C: Cal + Send> CryptoDriver for EmbeddedCalBridge<C> {
         pubkey_out: &mut [u8],
         seckey_out: &mut [u8],
     ) -> Result<(), CryptoError> {
-        critical_section::with(|cs| {
-            let mut cal = self.cal.borrow(cs).borrow_mut();
-            let dh = cal.dh();
+        let mut cal = self.cal.lock();
+        let dh = cal.dh();
 
-            let alg = map_dh_alg::<C>(alg)?;
-            let visible_seckey = dh.generate_visible(alg.clone());
+        let alg = map_dh_alg::<C>(alg)?;
+        let visible_seckey = dh.generate_visible(alg.clone());
 
-            // Export secret key bytes before consuming visible_seckey via .into()
-            {
-                let exported = dh.export_secretkey_bytes(&visible_seckey);
-                let seckey_ref = exported.as_ref();
-                if seckey_out.len() != seckey_ref.len() {
-                    return Err(CryptoError::BufferTooSmall);
-                }
-                seckey_out.copy_from_slice(seckey_ref);
-            }
-
-            let seckey: <C::DhProvider as embedded_cal::DhProvider>::SecretKey =
-                visible_seckey.into();
-            let pubkey = dh.public_key(&seckey);
-
-            let exported = dh.export_publickey_bytes(&pubkey);
-            let pubkey_ref = exported.as_ref();
-            if pubkey_out.len() != pubkey_ref.len() {
+        // Export secret key bytes before consuming visible_seckey via .into()
+        {
+            let exported = dh.export_secretkey_bytes(&visible_seckey);
+            let seckey_ref = exported.as_ref();
+            if seckey_out.len() != seckey_ref.len() {
                 return Err(CryptoError::BufferTooSmall);
             }
-            pubkey_out.copy_from_slice(pubkey_ref);
-            Ok(())
-        })
+            seckey_out.copy_from_slice(seckey_ref);
+        }
+
+        let seckey: <C::DhProvider as embedded_cal::DhProvider>::SecretKey = visible_seckey.into();
+        let pubkey = dh.public_key(&seckey);
+
+        let exported = dh.export_publickey_bytes(&pubkey);
+        let pubkey_ref = exported.as_ref();
+        if pubkey_out.len() != pubkey_ref.len() {
+            return Err(CryptoError::BufferTooSmall);
+        }
+        pubkey_out.copy_from_slice(pubkey_ref);
+        Ok(())
     }
 
     fn dh_shared_secret(
@@ -196,32 +287,29 @@ impl<C: Cal + Send> CryptoDriver for EmbeddedCalBridge<C> {
         pubkey: &[u8],
         out: &mut [u8],
     ) -> Result<(), CryptoError> {
-        critical_section::with(|cs| {
-            let mut cal = self.cal.borrow(cs).borrow_mut();
-            let dh = cal.dh();
+        let mut cal = self.cal.lock();
+        let dh = cal.dh();
 
-            let alg = map_dh_alg::<C>(alg)?;
-            let visible_seckey = dh
-                .import_secretkey_bytes(alg.clone(), seckey)
-                .map_err(|_| CryptoError::ImportError)?;
-            let seckey: <C::DhProvider as embedded_cal::DhProvider>::SecretKey =
-                visible_seckey.into();
-            let pubkey = dh
-                .import_publickey_bytes(alg, pubkey)
-                .map_err(|_| CryptoError::ImportError)?;
+        let alg = map_dh_alg::<C>(alg)?;
+        let visible_seckey = dh
+            .import_secretkey_bytes(alg.clone(), seckey)
+            .map_err(|_| CryptoError::ImportError)?;
+        let seckey: <C::DhProvider as embedded_cal::DhProvider>::SecretKey = visible_seckey.into();
+        let pubkey = dh
+            .import_publickey_bytes(alg, pubkey)
+            .map_err(|_| CryptoError::ImportError)?;
 
-            let shared = dh
-                .shared_secret(&seckey, &pubkey)
-                .map_err(|_| CryptoError::IncompatibleKeys)?;
-            let bytes = dh.raw_secret_bytes(&shared);
+        let shared = dh
+            .shared_secret(&seckey, &pubkey)
+            .map_err(|_| CryptoError::IncompatibleKeys)?;
+        let bytes = dh.raw_secret_bytes(&shared);
 
-            let bytes_ref = bytes.as_ref();
-            if out.len() != bytes_ref.len() {
-                return Err(CryptoError::BufferTooSmall);
-            }
-            out.copy_from_slice(bytes_ref);
-            Ok(())
-        })
+        let bytes_ref = bytes.as_ref();
+        if out.len() != bytes_ref.len() {
+            return Err(CryptoError::BufferTooSmall);
+        }
+        out.copy_from_slice(bytes_ref);
+        Ok(())
     }
 
     fn hkdf_extract(
@@ -231,22 +319,20 @@ impl<C: Cal + Send> CryptoDriver for EmbeddedCalBridge<C> {
         ikm: &[u8],
         out: &mut [u8],
     ) -> Result<(), CryptoError> {
-        critical_section::with(|cs| {
-            let mut cal = self.cal.borrow(cs).borrow_mut();
-            let alg = map_hmac_alg::<C>(alg)?;
+        let mut cal = self.cal.lock();
+        let alg = map_hmac_alg::<C>(alg)?;
 
-            let prk = cal
-                .hmac()
-                .hkdf_extract(alg, salt, ikm)
-                .map_err(|_| CryptoError::BufferTooSmall)?;
+        let prk = cal
+            .hmac()
+            .hkdf_extract(alg, salt, ikm)
+            .map_err(|_| CryptoError::BufferTooSmall)?;
 
-            let bytes = prk.as_ref();
-            if out.len() != bytes.len() {
-                return Err(CryptoError::BufferTooSmall);
-            }
-            out.copy_from_slice(bytes);
-            Ok(())
-        })
+        let bytes = prk.as_ref();
+        if out.len() != bytes.len() {
+            return Err(CryptoError::BufferTooSmall);
+        }
+        out.copy_from_slice(bytes);
+        Ok(())
     }
 
     fn hkdf_expand(
@@ -256,14 +342,21 @@ impl<C: Cal + Send> CryptoDriver for EmbeddedCalBridge<C> {
         info: &[u8],
         okm: &mut [u8],
     ) -> Result<(), CryptoError> {
-        critical_section::with(|cs| {
-            let mut cal = self.cal.borrow(cs).borrow_mut();
-            let alg = map_hmac_alg::<C>(alg)?;
+        let mut cal = self.cal.lock();
+        let alg = map_hmac_alg::<C>(alg)?;
 
-            cal.hmac()
-                .hkdf_expand(alg, prk, info, okm)
-                .map_err(|_| CryptoError::BufferTooSmall)
-        })
+        cal.hmac()
+            .hkdf_expand(alg, prk, info, okm)
+            .map_err(|_| CryptoError::BufferTooSmall)
+    }
+
+    fn cordic_compute(
+        &self,
+        _alg: CordicAlgorithmId,
+        _input: &[u8],
+        _output: &mut [u8],
+    ) -> Result<(), CryptoError> {
+        Err(CryptoError::UnsupportedAlgorithm)
     }
 }
 

@@ -10,4 +10,4 @@ pub mod async_api;
 pub use error::CryptoError;
 pub use types::*;
 pub use driver::CryptoDriver;
-pub use registry::{register_provider, ProviderEntry};
+pub use registry::{register_provider, ProviderEntry, MAX_PROVIDERS};
