@@ -47,7 +47,7 @@ impl<T> SpinLock<T> {
 
     /// Acquire the lock, spinning until available.
     #[inline]
-    pub fn lock(&self) -> SpinLockGuard<T> {
+    pub fn lock(&self) -> SpinLockGuard<'_, T> {
         while self
             .locked
             .compare_exchange_weak(false, true, Ordering::Acquire, Ordering::Relaxed)

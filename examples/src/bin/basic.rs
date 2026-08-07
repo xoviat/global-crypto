@@ -45,7 +45,7 @@ fn main() {
 
     // --- DH ---
     match global_crypto::sync_api::dh_generate_keypair::<EcdhP256>() {
-        Ok((pubkey, seckey)) => println!("DH keypair ok"),
+        Ok((_pubkey, _seckey)) => println!("DH keypair ok"),
         Err(e) => println!("DH keypair failed as expected: {:?}", e),
     }
 
