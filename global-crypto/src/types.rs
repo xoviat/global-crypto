@@ -327,6 +327,7 @@ impl<A: AeadAlgorithm> AeadKey<A> {
         }
     }
     /// Return a zeroed key (for driver output).
+    #[allow(dead_code)]
     #[inline]
     pub(crate) fn zeroed() -> Self {
         Self {
@@ -369,6 +370,7 @@ impl<A: AeadAlgorithm> Nonce<A> {
     pub fn as_bytes(&self) -> &[u8] {
         &self.bytes[..A::NONCE_LEN]
     }
+    #[allow(dead_code)]
     pub(crate) fn from_slice_unchecked(bytes: &[u8]) -> Self {
         let mut arr = [0u8; MAX_AEAD_NONCE];
         arr[..bytes.len()].copy_from_slice(bytes);
@@ -377,6 +379,7 @@ impl<A: AeadAlgorithm> Nonce<A> {
             _phantom: PhantomData,
         }
     }
+    #[allow(dead_code)]
     #[inline]
     pub(crate) fn zeroed() -> Self {
         Self {
@@ -423,6 +426,7 @@ impl<A: AeadAlgorithm> Tag<A> {
     pub fn as_bytes_mut(&mut self) -> &mut [u8] {
         &mut self.bytes[..A::TAG_LEN]
     }
+    #[allow(dead_code)]
     pub(crate) fn from_slice_unchecked(bytes: &[u8]) -> Self {
         let mut arr = [0u8; MAX_AEAD_TAG];
         arr[..bytes.len()].copy_from_slice(bytes);
@@ -431,6 +435,7 @@ impl<A: AeadAlgorithm> Tag<A> {
             _phantom: PhantomData,
         }
     }
+    #[allow(dead_code)]
     #[inline]
     pub(crate) fn zeroed() -> Self {
         Self {
@@ -477,6 +482,7 @@ impl<A: HashAlgorithm> HashOutput<A> {
     pub fn as_bytes_mut(&mut self) -> &mut [u8] {
         &mut self.bytes[..A::OUTPUT_LEN]
     }
+    #[allow(dead_code)]
     pub(crate) fn from_slice_unchecked(bytes: &[u8]) -> Self {
         let mut arr = [0u8; MAX_HASH_OUT];
         arr[..bytes.len()].copy_from_slice(bytes);
@@ -485,6 +491,7 @@ impl<A: HashAlgorithm> HashOutput<A> {
             _phantom: PhantomData,
         }
     }
+    #[allow(dead_code)]
     #[inline]
     pub(crate) fn zeroed() -> Self {
         Self {
@@ -531,6 +538,7 @@ impl<A: HmacAlgorithm> HmacOutput<A> {
     pub fn as_bytes_mut(&mut self) -> &mut [u8] {
         &mut self.bytes[..A::OUTPUT_LEN]
     }
+    #[allow(dead_code)]
     pub(crate) fn from_slice_unchecked(bytes: &[u8]) -> Self {
         let mut arr = [0u8; MAX_HMAC_OUT];
         arr[..bytes.len()].copy_from_slice(bytes);
@@ -539,6 +547,7 @@ impl<A: HmacAlgorithm> HmacOutput<A> {
             _phantom: PhantomData,
         }
     }
+    #[allow(dead_code)]
     #[inline]
     pub(crate) fn zeroed() -> Self {
         Self {
@@ -585,6 +594,7 @@ impl<A: DhAlgorithm> DhPublicKey<A> {
     pub fn as_bytes_mut(&mut self) -> &mut [u8] {
         &mut self.bytes[..A::PUBLIC_KEY_LEN]
     }
+    #[allow(dead_code)]
     pub(crate) fn from_slice_unchecked(bytes: &[u8]) -> Self {
         let mut arr = [0u8; MAX_DH_PUBKEY];
         arr[..bytes.len()].copy_from_slice(bytes);
@@ -593,6 +603,7 @@ impl<A: DhAlgorithm> DhPublicKey<A> {
             _phantom: PhantomData,
         }
     }
+    #[allow(dead_code)]
     #[inline]
     pub(crate) fn zeroed() -> Self {
         Self {
@@ -639,6 +650,7 @@ impl<A: DhAlgorithm> DhSecretKey<A> {
     pub fn as_bytes_mut(&mut self) -> &mut [u8] {
         &mut self.bytes[..A::SECRET_KEY_LEN]
     }
+    #[allow(dead_code)]
     pub(crate) fn from_slice_unchecked(bytes: &[u8]) -> Self {
         let mut arr = [0u8; MAX_DH_SECKEY];
         arr[..bytes.len()].copy_from_slice(bytes);
@@ -647,6 +659,7 @@ impl<A: DhAlgorithm> DhSecretKey<A> {
             _phantom: PhantomData,
         }
     }
+    #[allow(dead_code)]
     #[inline]
     pub(crate) fn zeroed() -> Self {
         Self {
@@ -693,6 +706,7 @@ impl<A: DhAlgorithm> DhSharedSecret<A> {
     pub fn as_bytes_mut(&mut self) -> &mut [u8] {
         &mut self.bytes[..A::SHARED_SECRET_LEN]
     }
+    #[allow(dead_code)]
     pub(crate) fn from_slice_unchecked(bytes: &[u8]) -> Self {
         let mut arr = [0u8; MAX_DH_SHARED];
         arr[..bytes.len()].copy_from_slice(bytes);
@@ -701,6 +715,7 @@ impl<A: DhAlgorithm> DhSharedSecret<A> {
             _phantom: PhantomData,
         }
     }
+    #[allow(dead_code)]
     #[inline]
     pub(crate) fn zeroed() -> Self {
         Self {
@@ -747,6 +762,7 @@ impl<A: CordicAlgorithm> CordicInput<A> {
     pub fn as_bytes_mut(&mut self) -> &mut [u8] {
         &mut self.bytes[..A::INPUT_LEN]
     }
+    #[allow(dead_code)]
     pub(crate) fn from_slice_unchecked(bytes: &[u8]) -> Self {
         let mut arr = [0u8; MAX_CORDIC_IN];
         arr[..bytes.len()].copy_from_slice(bytes);
@@ -755,6 +771,7 @@ impl<A: CordicAlgorithm> CordicInput<A> {
             _phantom: PhantomData,
         }
     }
+    #[allow(dead_code)]
     #[inline]
     pub(crate) fn zeroed() -> Self {
         Self {
@@ -801,6 +818,7 @@ impl<A: CordicAlgorithm> CordicOutput<A> {
     pub fn as_bytes_mut(&mut self) -> &mut [u8] {
         &mut self.bytes[..A::OUTPUT_LEN]
     }
+    #[allow(dead_code)]
     pub(crate) fn from_slice_unchecked(bytes: &[u8]) -> Self {
         let mut arr = [0u8; MAX_CORDIC_OUT];
         arr[..bytes.len()].copy_from_slice(bytes);
@@ -809,6 +827,7 @@ impl<A: CordicAlgorithm> CordicOutput<A> {
             _phantom: PhantomData,
         }
     }
+    #[allow(dead_code)]
     #[inline]
     pub(crate) fn zeroed() -> Self {
         Self {
