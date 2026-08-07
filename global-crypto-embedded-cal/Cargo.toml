@@ -1,0 +1,13 @@
+[package]
+name = "global-crypto-embedded-cal"
+version = "0.1.0"
+edition = "2021"
+authors = ["You"]
+license = "MIT OR Apache-2.0"
+description = "embedded-cal backend for global-crypto"
+categories = ["cryptography", "no-std", "no-std::no-alloc"]
+
+[dependencies]
+global-crypto = { path = "../global-crypto" }
+embedded-cal = { git = "https://github.com/lake-rs/embedded-cal.git", rev = "f528de4" }
+critical-section = "1.2"

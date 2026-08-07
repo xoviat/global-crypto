@@ -1,0 +1,3 @@
+[workspace]
+members = ["global-crypto", "global-crypto-embedded-cal", "examples"]
+resolver = "2"
