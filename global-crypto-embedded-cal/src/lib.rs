@@ -16,8 +16,7 @@ use embedded_cal::{
 };
 use global_crypto::driver::{CAP_AEAD, CAP_DH, CAP_HASH, CAP_HKDF, CAP_HMAC};
 use global_crypto::{
-    AeadAlgorithmId, CordicAlgorithmId, CryptoDriver, CryptoError, DhAlgorithmId, HashAlgorithmId,
-    HmacAlgorithmId,
+    AeadAlgorithmId, CryptoDriver, CryptoError, DhAlgorithmId, HashAlgorithmId, HmacAlgorithmId,
 };
 
 // ============================================================================
@@ -162,10 +161,6 @@ impl<C: Cal + Send> CryptoDriver for EmbeddedCalBridge<C> {
 
     fn supports_hkdf(&self, alg: HmacAlgorithmId) -> bool {
         map_hmac_alg::<C>(alg).is_ok()
-    }
-
-    fn supports_cordic(&self, _alg: CordicAlgorithmId) -> bool {
-        false
     }
 
     fn aead_encrypt(
@@ -348,15 +343,6 @@ impl<C: Cal + Send> CryptoDriver for EmbeddedCalBridge<C> {
         cal.hmac()
             .hkdf_expand(alg, prk, info, okm)
             .map_err(|_| CryptoError::BufferTooSmall)
-    }
-
-    fn cordic_compute(
-        &self,
-        _alg: CordicAlgorithmId,
-        _input: &[u8],
-        _output: &mut [u8],
-    ) -> Result<(), CryptoError> {
-        Err(CryptoError::UnsupportedAlgorithm)
     }
 }
 

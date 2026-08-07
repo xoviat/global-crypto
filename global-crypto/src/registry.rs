@@ -5,9 +5,13 @@
 //! per provider allows ultra-fast bitwise rejection before any virtual
 //! dispatch occurs.
 
-use crate::driver::{CryptoDriver, CAP_AEAD, CAP_CORDIC, CAP_DH, CAP_HASH, CAP_HKDF, CAP_HMAC};
+use crate::driver::{
+    CryptoDriver, CAP_AEAD, CAP_CIPHER, CAP_CORDIC, CAP_CRC, CAP_DH, CAP_HASH, CAP_HKDF, CAP_HMAC,
+    CAP_SIGN, CAP_VERIFY,
+};
 use crate::types::{
-    AeadAlgorithmId, CordicAlgorithmId, DhAlgorithmId, HashAlgorithmId, HmacAlgorithmId,
+    AeadAlgorithmId, CipherAlgorithmId, CordicAlgorithmId, CrcAlgorithmId, DhAlgorithmId,
+    HashAlgorithmId, HmacAlgorithmId, SignAlgorithmId, VerifyAlgorithmId,
 };
 use core::cell::UnsafeCell;
 use core::sync::atomic::{AtomicUsize, Ordering};
@@ -126,6 +130,50 @@ fn probe_capabilities(driver: &dyn CryptoDriver) -> u16 {
     ] {
         if driver.supports_cordic(alg) {
             cap |= CAP_CORDIC;
+            break;
+        }
+    }
+
+    // Probe Sign
+    for alg in [SignAlgorithmId::EcdsaP256, SignAlgorithmId::EcdsaP384] {
+        if driver.supports_sign(alg) {
+            cap |= CAP_SIGN;
+            break;
+        }
+    }
+
+    // Probe Verify
+    for alg in [VerifyAlgorithmId::EcdsaP256, VerifyAlgorithmId::EcdsaP384] {
+        if driver.supports_verify(alg) {
+            cap |= CAP_VERIFY;
+            break;
+        }
+    }
+
+    // Probe Cipher
+    for alg in [
+        CipherAlgorithmId::Aes128Ecb,
+        CipherAlgorithmId::Aes256Ecb,
+        CipherAlgorithmId::Aes128Cbc,
+        CipherAlgorithmId::Aes256Cbc,
+        CipherAlgorithmId::Aes128Ctr,
+        CipherAlgorithmId::Aes256Ctr,
+    ] {
+        if driver.supports_cipher(alg) {
+            cap |= CAP_CIPHER;
+            break;
+        }
+    }
+
+    // Probe CRC
+    for alg in [
+        CrcAlgorithmId::Crc32,
+        CrcAlgorithmId::Crc32C,
+        CrcAlgorithmId::Crc16,
+        CrcAlgorithmId::Crc8,
+    ] {
+        if driver.supports_crc(alg) {
+            cap |= CAP_CRC;
             break;
         }
     }

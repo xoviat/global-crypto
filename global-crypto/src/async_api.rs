@@ -132,3 +132,48 @@ pub async fn cordic_compute<A: CordicAlgorithm>(
 ) -> Result<CordicOutput<A>, CryptoError> {
     crate::sync_api::cordic_compute::<A>(input)
 }
+
+/// Async digital signature.
+#[inline]
+pub async fn sign<A: SignAlgorithm>(
+    seckey: &SigningKey<A>,
+    message: &[u8],
+) -> Result<Signature<A>, CryptoError> {
+    crate::sync_api::sign::<A>(seckey, message)
+}
+
+/// Async signature verification.
+#[inline]
+pub async fn verify<A: VerifyAlgorithm + SignAlgorithm>(
+    pubkey: &VerifyingKey<A>,
+    message: &[u8],
+    signature: &Signature<A>,
+) -> Result<(), CryptoError> {
+    crate::sync_api::verify::<A>(pubkey, message, signature)
+}
+
+/// Async raw cipher encryption.
+#[inline]
+pub async fn cipher_encrypt<A: CipherAlgorithm>(
+    key: &CipherKey<A>,
+    iv: &Iv<A>,
+    data: &mut [u8],
+) -> Result<(), CryptoError> {
+    crate::sync_api::cipher_encrypt::<A>(key, iv, data)
+}
+
+/// Async raw cipher decryption.
+#[inline]
+pub async fn cipher_decrypt<A: CipherAlgorithm>(
+    key: &CipherKey<A>,
+    iv: &Iv<A>,
+    data: &mut [u8],
+) -> Result<(), CryptoError> {
+    crate::sync_api::cipher_decrypt::<A>(key, iv, data)
+}
+
+/// Async CRC computation.
+#[inline]
+pub async fn crc_compute<A: CrcAlgorithm>(data: &[u8]) -> Result<CrcOutput<A>, CryptoError> {
+    crate::sync_api::crc_compute::<A>(data)
+}

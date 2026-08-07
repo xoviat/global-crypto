@@ -29,6 +29,12 @@ pub(crate) const MAX_DH_SECKEY: usize = 48;
 pub(crate) const MAX_DH_SHARED: usize = 48;
 pub(crate) const MAX_CORDIC_IN: usize = 16;
 pub(crate) const MAX_CORDIC_OUT: usize = 16;
+pub(crate) const MAX_SIGN_SIG: usize = 96;
+pub(crate) const MAX_SIGN_SECKEY: usize = 48;
+pub(crate) const MAX_SIGN_PUBKEY: usize = 49;
+pub(crate) const MAX_CIPHER_KEY: usize = 32;
+pub(crate) const MAX_CIPHER_IV: usize = 16;
+pub(crate) const MAX_CRC_OUT: usize = 4;
 
 // ============================================================================
 // Algorithm IDs (dyn-boundary enums)
@@ -80,6 +86,44 @@ pub enum CordicAlgorithmId {
     Hypot,
 }
 
+/// Digital signature algorithm identifier for the object-safe driver boundary.
+#[non_exhaustive]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum SignAlgorithmId {
+    EcdsaP256,
+    EcdsaP384,
+}
+
+/// Signature verification algorithm identifier for the object-safe driver boundary.
+#[non_exhaustive]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum VerifyAlgorithmId {
+    EcdsaP256,
+    EcdsaP384,
+}
+
+/// Raw symmetric cipher algorithm identifier for the object-safe driver boundary.
+#[non_exhaustive]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum CipherAlgorithmId {
+    Aes128Ecb,
+    Aes256Ecb,
+    Aes128Cbc,
+    Aes256Cbc,
+    Aes128Ctr,
+    Aes256Ctr,
+}
+
+/// CRC algorithm identifier for the object-safe driver boundary.
+#[non_exhaustive]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum CrcAlgorithmId {
+    Crc32,
+    Crc32C,
+    Crc16,
+    Crc8,
+}
+
 // ============================================================================
 // Rich algorithm traits (compile-time parameters as associated consts)
 // ============================================================================
@@ -118,6 +162,33 @@ pub trait CordicAlgorithm: Copy + sealed::Sealed {
     const INPUT_LEN: usize;
     const OUTPUT_LEN: usize;
     const ID: CordicAlgorithmId;
+}
+
+/// Trait for digital signature algorithms known to the global crypto system.
+pub trait SignAlgorithm: Copy + sealed::Sealed {
+    const SECRET_KEY_LEN: usize;
+    const SIGNATURE_LEN: usize;
+    const ID: SignAlgorithmId;
+}
+
+/// Trait for signature verification algorithms known to the global crypto system.
+pub trait VerifyAlgorithm: Copy + sealed::Sealed {
+    const PUBLIC_KEY_LEN: usize;
+    const SIGNATURE_LEN: usize;
+    const ID: VerifyAlgorithmId;
+}
+
+/// Trait for raw symmetric cipher algorithms known to the global crypto system.
+pub trait CipherAlgorithm: Copy + sealed::Sealed {
+    const KEY_LEN: usize;
+    const IV_LEN: usize;
+    const ID: CipherAlgorithmId;
+}
+
+/// Trait for CRC algorithms known to the global crypto system.
+pub trait CrcAlgorithm: Copy + sealed::Sealed {
+    const OUTPUT_LEN: usize;
+    const ID: CrcAlgorithmId;
 }
 
 // ============================================================================
@@ -288,6 +359,132 @@ impl CordicAlgorithm for CordicHypot {
     const ID: CordicAlgorithmId = CordicAlgorithmId::Hypot;
 }
 
+/// ECDSA on P-256.
+#[derive(Clone, Copy)]
+pub struct EcdsaP256;
+impl sealed::Sealed for EcdsaP256 {}
+impl SignAlgorithm for EcdsaP256 {
+    const SECRET_KEY_LEN: usize = 32;
+    const SIGNATURE_LEN: usize = 64;
+    const ID: SignAlgorithmId = SignAlgorithmId::EcdsaP256;
+}
+impl VerifyAlgorithm for EcdsaP256 {
+    const PUBLIC_KEY_LEN: usize = 33; // compressed
+    const SIGNATURE_LEN: usize = 64;
+    const ID: VerifyAlgorithmId = VerifyAlgorithmId::EcdsaP256;
+}
+
+/// ECDSA on P-384.
+#[derive(Clone, Copy)]
+pub struct EcdsaP384;
+impl sealed::Sealed for EcdsaP384 {}
+impl SignAlgorithm for EcdsaP384 {
+    const SECRET_KEY_LEN: usize = 48;
+    const SIGNATURE_LEN: usize = 96;
+    const ID: SignAlgorithmId = SignAlgorithmId::EcdsaP384;
+}
+impl VerifyAlgorithm for EcdsaP384 {
+    const PUBLIC_KEY_LEN: usize = 49; // compressed
+    const SIGNATURE_LEN: usize = 96;
+    const ID: VerifyAlgorithmId = VerifyAlgorithmId::EcdsaP384;
+}
+
+/// AES-128-ECB.
+#[derive(Clone, Copy)]
+pub struct Aes128Ecb;
+impl sealed::Sealed for Aes128Ecb {}
+impl CipherAlgorithm for Aes128Ecb {
+    const KEY_LEN: usize = 16;
+    const IV_LEN: usize = 0;
+    const ID: CipherAlgorithmId = CipherAlgorithmId::Aes128Ecb;
+}
+
+/// AES-256-ECB.
+#[derive(Clone, Copy)]
+pub struct Aes256Ecb;
+impl sealed::Sealed for Aes256Ecb {}
+impl CipherAlgorithm for Aes256Ecb {
+    const KEY_LEN: usize = 32;
+    const IV_LEN: usize = 0;
+    const ID: CipherAlgorithmId = CipherAlgorithmId::Aes256Ecb;
+}
+
+/// AES-128-CBC.
+#[derive(Clone, Copy)]
+pub struct Aes128Cbc;
+impl sealed::Sealed for Aes128Cbc {}
+impl CipherAlgorithm for Aes128Cbc {
+    const KEY_LEN: usize = 16;
+    const IV_LEN: usize = 16;
+    const ID: CipherAlgorithmId = CipherAlgorithmId::Aes128Cbc;
+}
+
+/// AES-256-CBC.
+#[derive(Clone, Copy)]
+pub struct Aes256Cbc;
+impl sealed::Sealed for Aes256Cbc {}
+impl CipherAlgorithm for Aes256Cbc {
+    const KEY_LEN: usize = 32;
+    const IV_LEN: usize = 16;
+    const ID: CipherAlgorithmId = CipherAlgorithmId::Aes256Cbc;
+}
+
+/// AES-128-CTR.
+#[derive(Clone, Copy)]
+pub struct Aes128Ctr;
+impl sealed::Sealed for Aes128Ctr {}
+impl CipherAlgorithm for Aes128Ctr {
+    const KEY_LEN: usize = 16;
+    const IV_LEN: usize = 16;
+    const ID: CipherAlgorithmId = CipherAlgorithmId::Aes128Ctr;
+}
+
+/// AES-256-CTR.
+#[derive(Clone, Copy)]
+pub struct Aes256Ctr;
+impl sealed::Sealed for Aes256Ctr {}
+impl CipherAlgorithm for Aes256Ctr {
+    const KEY_LEN: usize = 32;
+    const IV_LEN: usize = 16;
+    const ID: CipherAlgorithmId = CipherAlgorithmId::Aes256Ctr;
+}
+
+/// CRC-32 (IEEE 802.3).
+#[derive(Clone, Copy)]
+pub struct Crc32;
+impl sealed::Sealed for Crc32 {}
+impl CrcAlgorithm for Crc32 {
+    const OUTPUT_LEN: usize = 4;
+    const ID: CrcAlgorithmId = CrcAlgorithmId::Crc32;
+}
+
+/// CRC-32C (Castagnoli).
+#[derive(Clone, Copy)]
+pub struct Crc32C;
+impl sealed::Sealed for Crc32C {}
+impl CrcAlgorithm for Crc32C {
+    const OUTPUT_LEN: usize = 4;
+    const ID: CrcAlgorithmId = CrcAlgorithmId::Crc32C;
+}
+
+/// CRC-16 (CCITT / ModBus).
+#[derive(Clone, Copy)]
+pub struct Crc16;
+impl sealed::Sealed for Crc16 {}
+impl CrcAlgorithm for Crc16 {
+    const OUTPUT_LEN: usize = 2;
+    const ID: CrcAlgorithmId = CrcAlgorithmId::Crc16;
+}
+
+/// CRC-8 (SMBus).
+#[derive(Clone, Copy)]
+pub struct Crc8;
+impl sealed::Sealed for Crc8 {}
+impl CrcAlgorithm for Crc8 {
+    const OUTPUT_LEN: usize = 1;
+    const ID: CrcAlgorithmId = CrcAlgorithmId::Crc8;
+}
+
 // ============================================================================
 // Rich data types (algorithm-parameterised, max-size backing arrays)
 // ============================================================================
@@ -299,7 +496,6 @@ pub struct AeadKey<A: AeadAlgorithm> {
 }
 
 impl<A: AeadAlgorithm> AeadKey<A> {
-    /// Import a key from raw bytes. Validates length against `A::KEY_LEN`.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, crate::CryptoError> {
         if bytes.len() != A::KEY_LEN {
             return Err(crate::CryptoError::BufferTooSmall);
@@ -311,12 +507,10 @@ impl<A: AeadAlgorithm> AeadKey<A> {
             _phantom: PhantomData,
         })
     }
-    /// Access the raw key bytes (correctly sized slice).
     #[inline]
     pub fn as_bytes(&self) -> &[u8] {
         &self.bytes[..A::KEY_LEN]
     }
-    /// Internal constructor that copies exactly `A::KEY_LEN` bytes.
     #[allow(dead_code)]
     pub(crate) fn from_slice_unchecked(bytes: &[u8]) -> Self {
         let mut arr = [0u8; MAX_AEAD_KEY];
@@ -326,9 +520,8 @@ impl<A: AeadAlgorithm> AeadKey<A> {
             _phantom: PhantomData,
         }
     }
-    /// Return a zeroed key (for driver output).
-    #[allow(dead_code)]
     #[inline]
+    #[allow(dead_code)]
     pub(crate) fn zeroed() -> Self {
         Self {
             bytes: [0u8; MAX_AEAD_KEY],
@@ -379,8 +572,8 @@ impl<A: AeadAlgorithm> Nonce<A> {
             _phantom: PhantomData,
         }
     }
-    #[allow(dead_code)]
     #[inline]
+    #[allow(dead_code)]
     pub(crate) fn zeroed() -> Self {
         Self {
             bytes: [0u8; MAX_AEAD_NONCE],
@@ -435,8 +628,8 @@ impl<A: AeadAlgorithm> Tag<A> {
             _phantom: PhantomData,
         }
     }
-    #[allow(dead_code)]
     #[inline]
+    #[allow(dead_code)]
     pub(crate) fn zeroed() -> Self {
         Self {
             bytes: [0u8; MAX_AEAD_TAG],
@@ -491,7 +684,6 @@ impl<A: HashAlgorithm> HashOutput<A> {
             _phantom: PhantomData,
         }
     }
-    #[allow(dead_code)]
     #[inline]
     pub(crate) fn zeroed() -> Self {
         Self {
@@ -547,7 +739,6 @@ impl<A: HmacAlgorithm> HmacOutput<A> {
             _phantom: PhantomData,
         }
     }
-    #[allow(dead_code)]
     #[inline]
     pub(crate) fn zeroed() -> Self {
         Self {
@@ -603,7 +794,6 @@ impl<A: DhAlgorithm> DhPublicKey<A> {
             _phantom: PhantomData,
         }
     }
-    #[allow(dead_code)]
     #[inline]
     pub(crate) fn zeroed() -> Self {
         Self {
@@ -659,7 +849,6 @@ impl<A: DhAlgorithm> DhSecretKey<A> {
             _phantom: PhantomData,
         }
     }
-    #[allow(dead_code)]
     #[inline]
     pub(crate) fn zeroed() -> Self {
         Self {
@@ -715,7 +904,6 @@ impl<A: DhAlgorithm> DhSharedSecret<A> {
             _phantom: PhantomData,
         }
     }
-    #[allow(dead_code)]
     #[inline]
     pub(crate) fn zeroed() -> Self {
         Self {
@@ -771,8 +959,8 @@ impl<A: CordicAlgorithm> CordicInput<A> {
             _phantom: PhantomData,
         }
     }
-    #[allow(dead_code)]
     #[inline]
+    #[allow(dead_code)]
     pub(crate) fn zeroed() -> Self {
         Self {
             bytes: [0u8; MAX_CORDIC_IN],
@@ -827,7 +1015,6 @@ impl<A: CordicAlgorithm> CordicOutput<A> {
             _phantom: PhantomData,
         }
     }
-    #[allow(dead_code)]
     #[inline]
     pub(crate) fn zeroed() -> Self {
         Self {
@@ -847,3 +1034,337 @@ impl<A: CordicAlgorithm> Clone for CordicOutput<A> {
 }
 
 impl<A: CordicAlgorithm> Copy for CordicOutput<A> {}
+
+// ============================================================================
+// Signature types
+// ============================================================================
+
+/// Signing key with compile-time algorithm binding.
+pub struct SigningKey<A: SignAlgorithm> {
+    bytes: [u8; MAX_SIGN_SECKEY],
+    _phantom: PhantomData<A>,
+}
+
+impl<A: SignAlgorithm> SigningKey<A> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, crate::CryptoError> {
+        if bytes.len() != A::SECRET_KEY_LEN {
+            return Err(crate::CryptoError::BufferTooSmall);
+        }
+        let mut arr = [0u8; MAX_SIGN_SECKEY];
+        arr[..bytes.len()].copy_from_slice(bytes);
+        Ok(Self {
+            bytes: arr,
+            _phantom: PhantomData,
+        })
+    }
+    #[inline]
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.bytes[..A::SECRET_KEY_LEN]
+    }
+    #[inline]
+    pub fn as_bytes_mut(&mut self) -> &mut [u8] {
+        &mut self.bytes[..A::SECRET_KEY_LEN]
+    }
+    #[allow(dead_code)]
+    pub(crate) fn from_slice_unchecked(bytes: &[u8]) -> Self {
+        let mut arr = [0u8; MAX_SIGN_SECKEY];
+        arr[..bytes.len()].copy_from_slice(bytes);
+        Self {
+            bytes: arr,
+            _phantom: PhantomData,
+        }
+    }
+    #[inline]
+    #[allow(dead_code)]
+    pub(crate) fn zeroed() -> Self {
+        Self {
+            bytes: [0u8; MAX_SIGN_SECKEY],
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<A: SignAlgorithm> Clone for SigningKey<A> {
+    fn clone(&self) -> Self {
+        Self {
+            bytes: self.bytes,
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<A: SignAlgorithm> Copy for SigningKey<A> {}
+
+/// Verifying key with compile-time algorithm binding.
+pub struct VerifyingKey<A: VerifyAlgorithm> {
+    bytes: [u8; MAX_SIGN_PUBKEY],
+    _phantom: PhantomData<A>,
+}
+
+impl<A: VerifyAlgorithm> VerifyingKey<A> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, crate::CryptoError> {
+        if bytes.len() != A::PUBLIC_KEY_LEN {
+            return Err(crate::CryptoError::BufferTooSmall);
+        }
+        let mut arr = [0u8; MAX_SIGN_PUBKEY];
+        arr[..bytes.len()].copy_from_slice(bytes);
+        Ok(Self {
+            bytes: arr,
+            _phantom: PhantomData,
+        })
+    }
+    #[inline]
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.bytes[..A::PUBLIC_KEY_LEN]
+    }
+    #[allow(dead_code)]
+    pub(crate) fn from_slice_unchecked(bytes: &[u8]) -> Self {
+        let mut arr = [0u8; MAX_SIGN_PUBKEY];
+        arr[..bytes.len()].copy_from_slice(bytes);
+        Self {
+            bytes: arr,
+            _phantom: PhantomData,
+        }
+    }
+    #[inline]
+    #[allow(dead_code)]
+    pub(crate) fn zeroed() -> Self {
+        Self {
+            bytes: [0u8; MAX_SIGN_PUBKEY],
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<A: VerifyAlgorithm> Clone for VerifyingKey<A> {
+    fn clone(&self) -> Self {
+        Self {
+            bytes: self.bytes,
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<A: VerifyAlgorithm> Copy for VerifyingKey<A> {}
+
+/// Signature with compile-time algorithm binding.
+pub struct Signature<A: SignAlgorithm> {
+    bytes: [u8; MAX_SIGN_SIG],
+    _phantom: PhantomData<A>,
+}
+
+impl<A: SignAlgorithm> Signature<A> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, crate::CryptoError> {
+        if bytes.len() != A::SIGNATURE_LEN {
+            return Err(crate::CryptoError::BufferTooSmall);
+        }
+        let mut arr = [0u8; MAX_SIGN_SIG];
+        arr[..bytes.len()].copy_from_slice(bytes);
+        Ok(Self {
+            bytes: arr,
+            _phantom: PhantomData,
+        })
+    }
+    #[inline]
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.bytes[..A::SIGNATURE_LEN]
+    }
+    #[inline]
+    pub fn as_bytes_mut(&mut self) -> &mut [u8] {
+        &mut self.bytes[..A::SIGNATURE_LEN]
+    }
+    #[allow(dead_code)]
+    pub(crate) fn from_slice_unchecked(bytes: &[u8]) -> Self {
+        let mut arr = [0u8; MAX_SIGN_SIG];
+        arr[..bytes.len()].copy_from_slice(bytes);
+        Self {
+            bytes: arr,
+            _phantom: PhantomData,
+        }
+    }
+    #[inline]
+    pub(crate) fn zeroed() -> Self {
+        Self {
+            bytes: [0u8; MAX_SIGN_SIG],
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<A: SignAlgorithm> Clone for Signature<A> {
+    fn clone(&self) -> Self {
+        Self {
+            bytes: self.bytes,
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<A: SignAlgorithm> Copy for Signature<A> {}
+
+// ============================================================================
+// Cipher types
+// ============================================================================
+
+/// Cipher key with compile-time algorithm binding.
+pub struct CipherKey<A: CipherAlgorithm> {
+    bytes: [u8; MAX_CIPHER_KEY],
+    _phantom: PhantomData<A>,
+}
+
+impl<A: CipherAlgorithm> CipherKey<A> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, crate::CryptoError> {
+        if bytes.len() != A::KEY_LEN {
+            return Err(crate::CryptoError::BufferTooSmall);
+        }
+        let mut arr = [0u8; MAX_CIPHER_KEY];
+        arr[..bytes.len()].copy_from_slice(bytes);
+        Ok(Self {
+            bytes: arr,
+            _phantom: PhantomData,
+        })
+    }
+    #[inline]
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.bytes[..A::KEY_LEN]
+    }
+    #[allow(dead_code)]
+    pub(crate) fn from_slice_unchecked(bytes: &[u8]) -> Self {
+        let mut arr = [0u8; MAX_CIPHER_KEY];
+        arr[..bytes.len()].copy_from_slice(bytes);
+        Self {
+            bytes: arr,
+            _phantom: PhantomData,
+        }
+    }
+    #[inline]
+    #[allow(dead_code)]
+    pub(crate) fn zeroed() -> Self {
+        Self {
+            bytes: [0u8; MAX_CIPHER_KEY],
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<A: CipherAlgorithm> Clone for CipherKey<A> {
+    fn clone(&self) -> Self {
+        Self {
+            bytes: self.bytes,
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<A: CipherAlgorithm> Copy for CipherKey<A> {}
+
+/// Cipher IV with compile-time algorithm binding.
+pub struct Iv<A: CipherAlgorithm> {
+    bytes: [u8; MAX_CIPHER_IV],
+    _phantom: PhantomData<A>,
+}
+
+impl<A: CipherAlgorithm> Iv<A> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, crate::CryptoError> {
+        if bytes.len() != A::IV_LEN {
+            return Err(crate::CryptoError::BufferTooSmall);
+        }
+        let mut arr = [0u8; MAX_CIPHER_IV];
+        arr[..bytes.len()].copy_from_slice(bytes);
+        Ok(Self {
+            bytes: arr,
+            _phantom: PhantomData,
+        })
+    }
+    #[inline]
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.bytes[..A::IV_LEN]
+    }
+    #[allow(dead_code)]
+    pub(crate) fn from_slice_unchecked(bytes: &[u8]) -> Self {
+        let mut arr = [0u8; MAX_CIPHER_IV];
+        arr[..bytes.len()].copy_from_slice(bytes);
+        Self {
+            bytes: arr,
+            _phantom: PhantomData,
+        }
+    }
+    #[inline]
+    #[allow(dead_code)]
+    pub(crate) fn zeroed() -> Self {
+        Self {
+            bytes: [0u8; MAX_CIPHER_IV],
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<A: CipherAlgorithm> Clone for Iv<A> {
+    fn clone(&self) -> Self {
+        Self {
+            bytes: self.bytes,
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<A: CipherAlgorithm> Copy for Iv<A> {}
+
+// ============================================================================
+// CRC types
+// ============================================================================
+
+/// CRC output with compile-time algorithm binding.
+pub struct CrcOutput<A: CrcAlgorithm> {
+    bytes: [u8; MAX_CRC_OUT],
+    _phantom: PhantomData<A>,
+}
+
+impl<A: CrcAlgorithm> CrcOutput<A> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, crate::CryptoError> {
+        if bytes.len() != A::OUTPUT_LEN {
+            return Err(crate::CryptoError::BufferTooSmall);
+        }
+        let mut arr = [0u8; MAX_CRC_OUT];
+        arr[..bytes.len()].copy_from_slice(bytes);
+        Ok(Self {
+            bytes: arr,
+            _phantom: PhantomData,
+        })
+    }
+    #[inline]
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.bytes[..A::OUTPUT_LEN]
+    }
+    #[inline]
+    pub fn as_bytes_mut(&mut self) -> &mut [u8] {
+        &mut self.bytes[..A::OUTPUT_LEN]
+    }
+    #[allow(dead_code)]
+    pub(crate) fn from_slice_unchecked(bytes: &[u8]) -> Self {
+        let mut arr = [0u8; MAX_CRC_OUT];
+        arr[..bytes.len()].copy_from_slice(bytes);
+        Self {
+            bytes: arr,
+            _phantom: PhantomData,
+        }
+    }
+    #[inline]
+    pub(crate) fn zeroed() -> Self {
+        Self {
+            bytes: [0u8; MAX_CRC_OUT],
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<A: CrcAlgorithm> Clone for CrcOutput<A> {
+    fn clone(&self) -> Self {
+        Self {
+            bytes: self.bytes,
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<A: CrcAlgorithm> Copy for CrcOutput<A> {}

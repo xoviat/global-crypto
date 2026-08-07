@@ -4,7 +4,10 @@
 //! a `&mut` reference to a crypto engine. The registry selects the best
 //! available provider automatically.
 
-use crate::driver::{CAP_AEAD, CAP_CORDIC, CAP_DH, CAP_HASH, CAP_HKDF, CAP_HMAC};
+use crate::driver::{
+    CAP_AEAD, CAP_CIPHER, CAP_CORDIC, CAP_CRC, CAP_DH, CAP_HASH, CAP_HKDF, CAP_HMAC, CAP_SIGN,
+    CAP_VERIFY,
+};
 use crate::registry::select_provider;
 use crate::types::*;
 use crate::CryptoError;
@@ -172,5 +175,88 @@ pub fn cordic_compute<A: CordicAlgorithm>(
 
     let mut out = CordicOutput::<A>::zeroed();
     driver.cordic_compute(A::ID, input.as_bytes(), out.as_bytes_mut())?;
+    Ok(out)
+}
+
+// ============================================================================
+// Digital signatures
+// ============================================================================
+
+/// Sign `message` using the globally-selected signing provider.
+#[inline]
+pub fn sign<A: SignAlgorithm>(
+    seckey: &SigningKey<A>,
+    message: &[u8],
+) -> Result<Signature<A>, CryptoError> {
+    let driver =
+        select_provider(CAP_SIGN, |d| d.supports_sign(A::ID)).ok_or(CryptoError::NoProvider)?;
+
+    let mut out = Signature::<A>::zeroed();
+    driver.sign(A::ID, seckey.as_bytes(), message, out.as_bytes_mut())?;
+    Ok(out)
+}
+
+/// Verify `signature` over `message` using the globally-selected verification provider.
+#[inline]
+pub fn verify<A: VerifyAlgorithm + SignAlgorithm>(
+    pubkey: &VerifyingKey<A>,
+    message: &[u8],
+    signature: &Signature<A>,
+) -> Result<(), CryptoError> {
+    let driver = select_provider(CAP_VERIFY, |d| {
+        d.supports_verify(<A as VerifyAlgorithm>::ID)
+    })
+    .ok_or(CryptoError::NoProvider)?;
+
+    driver.verify(
+        <A as VerifyAlgorithm>::ID,
+        pubkey.as_bytes(),
+        message,
+        signature.as_bytes(),
+    )
+}
+
+// ============================================================================
+// Raw symmetric cipher
+// ============================================================================
+
+/// Encrypt `data` in place using the globally-selected cipher provider.
+#[inline]
+pub fn cipher_encrypt<A: CipherAlgorithm>(
+    key: &CipherKey<A>,
+    iv: &Iv<A>,
+    data: &mut [u8],
+) -> Result<(), CryptoError> {
+    let driver =
+        select_provider(CAP_CIPHER, |d| d.supports_cipher(A::ID)).ok_or(CryptoError::NoProvider)?;
+
+    driver.cipher_encrypt(A::ID, key.as_bytes(), iv.as_bytes(), data)
+}
+
+/// Decrypt `data` in place using the globally-selected cipher provider.
+#[inline]
+pub fn cipher_decrypt<A: CipherAlgorithm>(
+    key: &CipherKey<A>,
+    iv: &Iv<A>,
+    data: &mut [u8],
+) -> Result<(), CryptoError> {
+    let driver =
+        select_provider(CAP_CIPHER, |d| d.supports_cipher(A::ID)).ok_or(CryptoError::NoProvider)?;
+
+    driver.cipher_decrypt(A::ID, key.as_bytes(), iv.as_bytes(), data)
+}
+
+// ============================================================================
+// CRC
+// ============================================================================
+
+/// Compute CRC over `data` using the globally-selected CRC provider.
+#[inline]
+pub fn crc_compute<A: CrcAlgorithm>(data: &[u8]) -> Result<CrcOutput<A>, CryptoError> {
+    let driver =
+        select_provider(CAP_CRC, |d| d.supports_crc(A::ID)).ok_or(CryptoError::NoProvider)?;
+
+    let mut out = CrcOutput::<A>::zeroed();
+    driver.crc_compute(A::ID, data, out.as_bytes_mut())?;
     Ok(out)
 }

@@ -5,8 +5,8 @@
 //! where needed (e.g. hardware register access).
 
 use crate::{
-    AeadAlgorithmId, CordicAlgorithmId, CryptoError, DhAlgorithmId, HashAlgorithmId,
-    HmacAlgorithmId,
+    AeadAlgorithmId, CipherAlgorithmId, CordicAlgorithmId, CrcAlgorithmId, CryptoError,
+    DhAlgorithmId, HashAlgorithmId, HmacAlgorithmId, SignAlgorithmId, VerifyAlgorithmId,
 };
 
 // ------------------------------------------------------------------
@@ -25,6 +25,14 @@ pub const CAP_DH: u16 = 1 << 3;
 pub const CAP_HKDF: u16 = 1 << 4;
 /// Capability bit: CORDIC operations.
 pub const CAP_CORDIC: u16 = 1 << 5;
+/// Capability bit: Digital signature (sign) operations.
+pub const CAP_SIGN: u16 = 1 << 6;
+/// Capability bit: Signature verification operations.
+pub const CAP_VERIFY: u16 = 1 << 7;
+/// Capability bit: Raw symmetric cipher operations.
+pub const CAP_CIPHER: u16 = 1 << 8;
+/// Capability bit: CRC operations.
+pub const CAP_CRC: u16 = 1 << 9;
 
 /// Dyn-safe cryptographic driver trait.
 ///
@@ -76,6 +84,26 @@ pub trait CryptoDriver: Send + Sync {
 
     /// Returns `true` if this provider supports the given CORDIC algorithm.
     fn supports_cordic(&self, _alg: CordicAlgorithmId) -> bool {
+        false
+    }
+
+    /// Returns `true` if this provider supports the given signature algorithm.
+    fn supports_sign(&self, _alg: SignAlgorithmId) -> bool {
+        false
+    }
+
+    /// Returns `true` if this provider supports the given verification algorithm.
+    fn supports_verify(&self, _alg: VerifyAlgorithmId) -> bool {
+        false
+    }
+
+    /// Returns `true` if this provider supports the given cipher algorithm.
+    fn supports_cipher(&self, _alg: CipherAlgorithmId) -> bool {
+        false
+    }
+
+    /// Returns `true` if this provider supports the given CRC algorithm.
+    fn supports_crc(&self, _alg: CrcAlgorithmId) -> bool {
         false
     }
 
@@ -231,6 +259,94 @@ pub trait CryptoDriver: Send + Sync {
         _alg: CordicAlgorithmId,
         _input: &[u8],
         _output: &mut [u8],
+    ) -> Result<(), CryptoError> {
+        Err(CryptoError::UnsupportedAlgorithm)
+    }
+
+    // ------------------------------------------------------------------
+    // Digital signatures
+    // ------------------------------------------------------------------
+
+    /// Sign `message` with `seckey` and write the signature into `sig_out`.
+    ///
+    /// # Errors
+    /// - `UnsupportedAlgorithm` if the algorithm is not supported.
+    /// - `BufferTooSmall` if `sig_out` is not the correct size.
+    fn sign(
+        &self,
+        _alg: SignAlgorithmId,
+        _seckey: &[u8],
+        _message: &[u8],
+        _sig_out: &mut [u8],
+    ) -> Result<(), CryptoError> {
+        Err(CryptoError::UnsupportedAlgorithm)
+    }
+
+    /// Verify `signature` over `message` with `pubkey`.
+    ///
+    /// # Errors
+    /// - `UnsupportedAlgorithm` if the algorithm is not supported.
+    /// - `DecryptionFailed` (re-used as "signature invalid") if verification fails.
+    fn verify(
+        &self,
+        _alg: VerifyAlgorithmId,
+        _pubkey: &[u8],
+        _message: &[u8],
+        _signature: &[u8],
+    ) -> Result<(), CryptoError> {
+        Err(CryptoError::UnsupportedAlgorithm)
+    }
+
+    // ------------------------------------------------------------------
+    // Raw symmetric cipher
+    // ------------------------------------------------------------------
+
+    /// Encrypt `data` in place using a raw block cipher mode (ECB, CBC, CTR).
+    ///
+    /// `iv` is empty for ECB and 16 bytes for CBC/CTR.
+    ///
+    /// # Errors
+    /// - `UnsupportedAlgorithm` if the algorithm is not supported.
+    fn cipher_encrypt(
+        &self,
+        _alg: CipherAlgorithmId,
+        _key: &[u8],
+        _iv: &[u8],
+        _data: &mut [u8],
+    ) -> Result<(), CryptoError> {
+        Err(CryptoError::UnsupportedAlgorithm)
+    }
+
+    /// Decrypt `data` in place using a raw block cipher mode (ECB, CBC, CTR).
+    ///
+    /// `iv` is empty for ECB and 16 bytes for CBC/CTR.
+    ///
+    /// # Errors
+    /// - `UnsupportedAlgorithm` if the algorithm is not supported.
+    fn cipher_decrypt(
+        &self,
+        _alg: CipherAlgorithmId,
+        _key: &[u8],
+        _iv: &[u8],
+        _data: &mut [u8],
+    ) -> Result<(), CryptoError> {
+        Err(CryptoError::UnsupportedAlgorithm)
+    }
+
+    // ------------------------------------------------------------------
+    // CRC
+    // ------------------------------------------------------------------
+
+    /// Compute CRC over `data` and write the result into `out`.
+    ///
+    /// # Errors
+    /// - `UnsupportedAlgorithm` if the algorithm is not supported.
+    /// - `BufferTooSmall` if `out` is not the correct size.
+    fn crc_compute(
+        &self,
+        _alg: CrcAlgorithmId,
+        _data: &[u8],
+        _out: &mut [u8],
     ) -> Result<(), CryptoError> {
         Err(CryptoError::UnsupportedAlgorithm)
     }
