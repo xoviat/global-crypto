@@ -65,7 +65,7 @@ pub fn aead_decrypt<A: AeadAlgorithm>(
 }
 
 // ============================================================================
-// Hash
+// Hash (one-shot)
 // ============================================================================
 
 /// Hash `data` using the globally-selected hash provider.
@@ -77,6 +77,52 @@ pub fn hash<A: HashAlgorithm>(data: &[u8]) -> Result<HashOutput<A>, CryptoError>
     let mut out = HashOutput::<A>::zeroed();
     driver.hash(A::ID, data, out.as_bytes_mut())?;
     Ok(out)
+}
+
+// ============================================================================
+// Hash (streaming)
+// ============================================================================
+
+/// Return the state buffer size required for the given hash algorithm.
+#[inline]
+pub fn hash_state_size<A: HashAlgorithm>() -> usize {
+    match select_provider(CAP_HASH, |d| d.supports_hash(A::ID)) {
+        Some(driver) => driver.hash_state_size(A::ID),
+        None => 0,
+    }
+}
+
+/// Initialize a streaming hash context.
+///
+/// `state` must be at least `hash_state_size::<A>()` bytes.
+#[inline]
+pub fn hash_init<A: HashAlgorithm>(state: &mut [u8]) -> Result<(), CryptoError> {
+    let driver =
+        select_provider(CAP_HASH, |d| d.supports_hash(A::ID)).ok_or(CryptoError::NoProvider)?;
+    driver.hash_init(A::ID, state)
+}
+
+/// Update a streaming hash context with more data.
+///
+/// # Note
+/// This selects the highest-priority hash provider. In multi-provider
+/// setups where different hash algorithms use different providers, the
+/// caller must ensure only one hash provider is registered.
+#[inline]
+pub fn hash_update(state: &mut [u8], data: &[u8]) -> Result<(), CryptoError> {
+    let driver = select_provider(CAP_HASH, |_| true).ok_or(CryptoError::NoProvider)?;
+    driver.hash_update(state, data)
+}
+
+/// Finalize a streaming hash context and write the digest.
+#[inline]
+pub fn hash_finalize<A: HashAlgorithm>(
+    state: &mut [u8],
+    out: &mut [u8],
+) -> Result<(), CryptoError> {
+    let driver =
+        select_provider(CAP_HASH, |d| d.supports_hash(A::ID)).ok_or(CryptoError::NoProvider)?;
+    driver.hash_finalize(state, out)
 }
 
 // ============================================================================

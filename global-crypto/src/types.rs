@@ -9,6 +9,8 @@
 
 use core::marker::PhantomData;
 
+use crate::CryptoError;
+
 mod sealed {
     pub trait Sealed {}
 }
@@ -22,16 +24,18 @@ pub(crate) const MAX_AEAD_NONCE: usize = 13;
 pub(crate) const MAX_AEAD_TAG: usize = 16;
 pub(crate) const MAX_HASH_OUT: usize = 64;
 #[allow(dead_code)]
+pub(crate) const MAX_HASH_STATE: usize = 256;
+#[allow(dead_code)]
 pub(crate) const MAX_HMAC_KEY: usize = 128;
 pub(crate) const MAX_HMAC_OUT: usize = 64;
-pub(crate) const MAX_DH_PUBKEY: usize = 49;
+pub(crate) const MAX_DH_PUBKEY: usize = 97; // uncompressed P-384
 pub(crate) const MAX_DH_SECKEY: usize = 48;
 pub(crate) const MAX_DH_SHARED: usize = 48;
 pub(crate) const MAX_CORDIC_IN: usize = 16;
 pub(crate) const MAX_CORDIC_OUT: usize = 16;
 pub(crate) const MAX_SIGN_SIG: usize = 96;
 pub(crate) const MAX_SIGN_SECKEY: usize = 48;
-pub(crate) const MAX_SIGN_PUBKEY: usize = 49;
+pub(crate) const MAX_SIGN_PUBKEY: usize = 97; // uncompressed P-384
 pub(crate) const MAX_CIPHER_KEY: usize = 32;
 pub(crate) const MAX_CIPHER_IV: usize = 16;
 pub(crate) const MAX_CRC_OUT: usize = 4;
@@ -75,6 +79,7 @@ pub enum DhAlgorithmId {
     EcdhP256,
     EcdhP384,
     X25519,
+    EcdhP256Uncompressed,
 }
 
 /// CORDIC algorithm identifier for the object-safe driver boundary.
@@ -296,7 +301,7 @@ impl HmacAlgorithm for HmacSha512 {
     const ID: HmacAlgorithmId = HmacAlgorithmId::HmacSha512;
 }
 
-/// ECDH on P-256 (COSE curve 1).
+/// ECDH on P-256 (COSE curve 1), compressed public key (33 bytes).
 #[derive(Clone, Copy)]
 pub struct EcdhP256;
 impl sealed::Sealed for EcdhP256 {}
@@ -305,6 +310,17 @@ impl DhAlgorithm for EcdhP256 {
     const PUBLIC_KEY_LEN: usize = 33; // compressed
     const SHARED_SECRET_LEN: usize = 32;
     const ID: DhAlgorithmId = DhAlgorithmId::EcdhP256;
+}
+
+/// ECDH on P-256 with uncompressed public keys (65 bytes).
+#[derive(Clone, Copy)]
+pub struct EcdhP256Uncompressed;
+impl sealed::Sealed for EcdhP256Uncompressed {}
+impl DhAlgorithm for EcdhP256Uncompressed {
+    const SECRET_KEY_LEN: usize = 32;
+    const PUBLIC_KEY_LEN: usize = 65; // uncompressed
+    const SHARED_SECRET_LEN: usize = 32;
+    const ID: DhAlgorithmId = DhAlgorithmId::EcdhP256Uncompressed;
 }
 
 /// ECDH on P-384 (COSE curve 2).
@@ -496,9 +512,9 @@ pub struct AeadKey<A: AeadAlgorithm> {
 }
 
 impl<A: AeadAlgorithm> AeadKey<A> {
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, crate::CryptoError> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, CryptoError> {
         if bytes.len() != A::KEY_LEN {
-            return Err(crate::CryptoError::BufferTooSmall);
+            return Err(CryptoError::BufferTooSmall);
         }
         let mut arr = [0u8; MAX_AEAD_KEY];
         arr[..bytes.len()].copy_from_slice(bytes);
@@ -548,9 +564,9 @@ pub struct Nonce<A: AeadAlgorithm> {
 }
 
 impl<A: AeadAlgorithm> Nonce<A> {
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, crate::CryptoError> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, CryptoError> {
         if bytes.len() != A::NONCE_LEN {
-            return Err(crate::CryptoError::BufferTooSmall);
+            return Err(CryptoError::BufferTooSmall);
         }
         let mut arr = [0u8; MAX_AEAD_NONCE];
         arr[..bytes.len()].copy_from_slice(bytes);
@@ -600,9 +616,9 @@ pub struct Tag<A: AeadAlgorithm> {
 }
 
 impl<A: AeadAlgorithm> Tag<A> {
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, crate::CryptoError> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, CryptoError> {
         if bytes.len() != A::TAG_LEN {
-            return Err(crate::CryptoError::BufferTooSmall);
+            return Err(CryptoError::BufferTooSmall);
         }
         let mut arr = [0u8; MAX_AEAD_TAG];
         arr[..bytes.len()].copy_from_slice(bytes);
@@ -656,9 +672,9 @@ pub struct HashOutput<A: HashAlgorithm> {
 }
 
 impl<A: HashAlgorithm> HashOutput<A> {
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, crate::CryptoError> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, CryptoError> {
         if bytes.len() != A::OUTPUT_LEN {
-            return Err(crate::CryptoError::BufferTooSmall);
+            return Err(CryptoError::BufferTooSmall);
         }
         let mut arr = [0u8; MAX_HASH_OUT];
         arr[..bytes.len()].copy_from_slice(bytes);
@@ -711,9 +727,9 @@ pub struct HmacOutput<A: HmacAlgorithm> {
 }
 
 impl<A: HmacAlgorithm> HmacOutput<A> {
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, crate::CryptoError> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, CryptoError> {
         if bytes.len() != A::OUTPUT_LEN {
-            return Err(crate::CryptoError::BufferTooSmall);
+            return Err(CryptoError::BufferTooSmall);
         }
         let mut arr = [0u8; MAX_HMAC_OUT];
         arr[..bytes.len()].copy_from_slice(bytes);
@@ -766,9 +782,9 @@ pub struct DhPublicKey<A: DhAlgorithm> {
 }
 
 impl<A: DhAlgorithm> DhPublicKey<A> {
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, crate::CryptoError> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, CryptoError> {
         if bytes.len() != A::PUBLIC_KEY_LEN {
-            return Err(crate::CryptoError::BufferTooSmall);
+            return Err(CryptoError::BufferTooSmall);
         }
         let mut arr = [0u8; MAX_DH_PUBKEY];
         arr[..bytes.len()].copy_from_slice(bytes);
@@ -821,9 +837,9 @@ pub struct DhSecretKey<A: DhAlgorithm> {
 }
 
 impl<A: DhAlgorithm> DhSecretKey<A> {
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, crate::CryptoError> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, CryptoError> {
         if bytes.len() != A::SECRET_KEY_LEN {
-            return Err(crate::CryptoError::BufferTooSmall);
+            return Err(CryptoError::BufferTooSmall);
         }
         let mut arr = [0u8; MAX_DH_SECKEY];
         arr[..bytes.len()].copy_from_slice(bytes);
@@ -876,9 +892,9 @@ pub struct DhSharedSecret<A: DhAlgorithm> {
 }
 
 impl<A: DhAlgorithm> DhSharedSecret<A> {
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, crate::CryptoError> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, CryptoError> {
         if bytes.len() != A::SHARED_SECRET_LEN {
-            return Err(crate::CryptoError::BufferTooSmall);
+            return Err(CryptoError::BufferTooSmall);
         }
         let mut arr = [0u8; MAX_DH_SHARED];
         arr[..bytes.len()].copy_from_slice(bytes);
@@ -931,9 +947,9 @@ pub struct CordicInput<A: CordicAlgorithm> {
 }
 
 impl<A: CordicAlgorithm> CordicInput<A> {
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, crate::CryptoError> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, CryptoError> {
         if bytes.len() != A::INPUT_LEN {
-            return Err(crate::CryptoError::BufferTooSmall);
+            return Err(CryptoError::BufferTooSmall);
         }
         let mut arr = [0u8; MAX_CORDIC_IN];
         arr[..bytes.len()].copy_from_slice(bytes);
@@ -987,9 +1003,9 @@ pub struct CordicOutput<A: CordicAlgorithm> {
 }
 
 impl<A: CordicAlgorithm> CordicOutput<A> {
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, crate::CryptoError> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, CryptoError> {
         if bytes.len() != A::OUTPUT_LEN {
-            return Err(crate::CryptoError::BufferTooSmall);
+            return Err(CryptoError::BufferTooSmall);
         }
         let mut arr = [0u8; MAX_CORDIC_OUT];
         arr[..bytes.len()].copy_from_slice(bytes);
@@ -1046,9 +1062,9 @@ pub struct SigningKey<A: SignAlgorithm> {
 }
 
 impl<A: SignAlgorithm> SigningKey<A> {
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, crate::CryptoError> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, CryptoError> {
         if bytes.len() != A::SECRET_KEY_LEN {
-            return Err(crate::CryptoError::BufferTooSmall);
+            return Err(CryptoError::BufferTooSmall);
         }
         let mut arr = [0u8; MAX_SIGN_SECKEY];
         arr[..bytes.len()].copy_from_slice(bytes);
@@ -1102,9 +1118,9 @@ pub struct VerifyingKey<A: VerifyAlgorithm> {
 }
 
 impl<A: VerifyAlgorithm> VerifyingKey<A> {
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, crate::CryptoError> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, CryptoError> {
         if bytes.len() != A::PUBLIC_KEY_LEN {
-            return Err(crate::CryptoError::BufferTooSmall);
+            return Err(CryptoError::BufferTooSmall);
         }
         let mut arr = [0u8; MAX_SIGN_PUBKEY];
         arr[..bytes.len()].copy_from_slice(bytes);
@@ -1154,9 +1170,9 @@ pub struct Signature<A: SignAlgorithm> {
 }
 
 impl<A: SignAlgorithm> Signature<A> {
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, crate::CryptoError> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, CryptoError> {
         if bytes.len() != A::SIGNATURE_LEN {
-            return Err(crate::CryptoError::BufferTooSmall);
+            return Err(CryptoError::BufferTooSmall);
         }
         let mut arr = [0u8; MAX_SIGN_SIG];
         arr[..bytes.len()].copy_from_slice(bytes);
@@ -1213,9 +1229,9 @@ pub struct CipherKey<A: CipherAlgorithm> {
 }
 
 impl<A: CipherAlgorithm> CipherKey<A> {
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, crate::CryptoError> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, CryptoError> {
         if bytes.len() != A::KEY_LEN {
-            return Err(crate::CryptoError::BufferTooSmall);
+            return Err(CryptoError::BufferTooSmall);
         }
         let mut arr = [0u8; MAX_CIPHER_KEY];
         arr[..bytes.len()].copy_from_slice(bytes);
@@ -1265,9 +1281,9 @@ pub struct Iv<A: CipherAlgorithm> {
 }
 
 impl<A: CipherAlgorithm> Iv<A> {
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, crate::CryptoError> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, CryptoError> {
         if bytes.len() != A::IV_LEN {
-            return Err(crate::CryptoError::BufferTooSmall);
+            return Err(CryptoError::BufferTooSmall);
         }
         let mut arr = [0u8; MAX_CIPHER_IV];
         arr[..bytes.len()].copy_from_slice(bytes);
@@ -1321,9 +1337,9 @@ pub struct CrcOutput<A: CrcAlgorithm> {
 }
 
 impl<A: CrcAlgorithm> CrcOutput<A> {
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, crate::CryptoError> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, CryptoError> {
         if bytes.len() != A::OUTPUT_LEN {
-            return Err(crate::CryptoError::BufferTooSmall);
+            return Err(CryptoError::BufferTooSmall);
         }
         let mut arr = [0u8; MAX_CRC_OUT];
         arr[..bytes.len()].copy_from_slice(bytes);

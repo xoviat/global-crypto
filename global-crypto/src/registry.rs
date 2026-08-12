@@ -103,6 +103,7 @@ fn probe_capabilities(driver: &dyn CryptoDriver) -> u16 {
         DhAlgorithmId::EcdhP256,
         DhAlgorithmId::EcdhP384,
         DhAlgorithmId::X25519,
+        DhAlgorithmId::EcdhP256Uncompressed,
     ] {
         if driver.supports_dh(alg) {
             cap |= CAP_DH;

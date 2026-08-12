@@ -146,7 +146,7 @@ pub trait CryptoDriver: Send + Sync {
     }
 
     // ------------------------------------------------------------------
-    // Hash
+    // Hash (one-shot)
     // ------------------------------------------------------------------
 
     /// Hash `data` and write the digest into `out`.
@@ -159,6 +159,32 @@ pub trait CryptoDriver: Send + Sync {
         _data: &[u8],
         _out: &mut [u8],
     ) -> Result<(), CryptoError> {
+        Err(CryptoError::UnsupportedAlgorithm)
+    }
+
+    // ------------------------------------------------------------------
+    // Hash (streaming)
+    // ------------------------------------------------------------------
+
+    /// Return the size of the opaque state buffer required for `hash_init`.
+    fn hash_state_size(&self, _alg: HashAlgorithmId) -> usize {
+        0
+    }
+
+    /// Initialize a streaming hash context into `state`.
+    ///
+    /// `state` must be at least `hash_state_size(alg)` bytes.
+    fn hash_init(&self, _alg: HashAlgorithmId, _state: &mut [u8]) -> Result<(), CryptoError> {
+        Err(CryptoError::UnsupportedAlgorithm)
+    }
+
+    /// Update a streaming hash context with more data.
+    fn hash_update(&self, _state: &mut [u8], _data: &[u8]) -> Result<(), CryptoError> {
+        Err(CryptoError::UnsupportedAlgorithm)
+    }
+
+    /// Finalize a streaming hash context and write the digest into `out`.
+    fn hash_finalize(&self, _state: &mut [u8], _out: &mut [u8]) -> Result<(), CryptoError> {
         Err(CryptoError::UnsupportedAlgorithm)
     }
 
