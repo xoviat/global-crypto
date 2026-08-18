@@ -1,0 +1,14 @@
+[package]
+name = "embassy_crypto"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.95"
+
+[dependencies]
+embassy_crypto_driver = { path = "../embassy_crypto_driver" }
+embassy-sync = { version = "0.6", default-features = false }
+embassy-futures = { version = "0.1", default-features = false }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt", "macros"] }
+critical-section = { version = "1", features = ["std"] }

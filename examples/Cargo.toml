@@ -1,9 +1,0 @@
-[package]
-name = "global-crypto-examples"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-global-crypto = { path = "../global-crypto" }
-global-crypto-embedded-cal = { path = "../global-crypto-embedded-cal" }
-embedded-cal = { git = "https://github.com/lake-rs/embedded-cal.git", rev = "f528de4" }
