@@ -300,11 +300,11 @@ impl<const N: usize> OpTable<N> {
         None
     }
 
-    /// Immediately free a slot that was just allocated but not yet queued.
-    pub fn free(&self, handle: OpHandle) {
-        let slot = &self.slots[handle.idx];
-        slot.state.store(STATE_FREE, Ordering::Release);
-    }
+    // Immediately free a slot that was just allocated but not yet queued.
+    //    pub fn free(&self, handle: OpHandle) {
+    //        let slot = &self.slots[handle.idx];
+    //        slot.state.store(STATE_FREE, Ordering::Release);
+    //    }
 
     /// Poll a handle. Returns `Pending` while the worker is still running.
     /// On `Ready`, the slot is freed automatically.

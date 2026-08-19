@@ -242,14 +242,18 @@ pub(crate) trait RunnerBackend {
 }
 
 macro_rules! impl_crypto_runner {
-    ($($idx:tt => $T:ident),+) => {
+      ($($idx:tt => $T:ident),+) => {
         impl<'a, $($T: CryptoDriver),+, const T: usize> CryptoRunner<
             ($(&'a Mutex<CriticalSectionRawMutex, $T>,)+),
             T,
         > {
             pub fn new(drivers: ($(&'a Mutex<CriticalSectionRawMutex, $T>,)+)) -> Self {
-                let mut driver_slots = [ const { DriverSlot::new(Capabilities(0)) }; MAX_DRIVERS];
-                let num_drivers = <[(); $($idx),+]>::len();
+                let driver_slots = [const { DriverSlot::new(Capabilities(0)) }; MAX_DRIVERS];
+                let num_drivers = {
+                    let mut n = 0usize;
+                    $({ n += 1; let _ = $idx; })+
+                    n
+                };
                 Self {
                     drivers,
                     driver_slots,
@@ -264,7 +268,7 @@ macro_rules! impl_crypto_runner {
             #[allow(unreachable_code)]
             pub async fn run(&self) -> ! {
                 join_n!(
-                    $(driver_worker(self.drivers.$idx, &self.queue, &self.op_table)),+
+                    $(driver_worker(self.drivers.$idx, &self.driver_slots[$idx], &self.op_table)),+
                 ).await;
 
                 unreachable!();
