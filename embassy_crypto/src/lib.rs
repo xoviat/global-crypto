@@ -486,12 +486,12 @@ mod tests {
 
     #[tokio::test]
     async fn server_future_queue_full() {
-        // Queue capacity 1, op table capacity 2.
+        // Op table capacity 1.
         let driver = Mutex::<CriticalSectionRawMutex, mock::MockDriver>::new(mock::MockDriver {
             caps: Capabilities::AES_128_GCM,
             ..Default::default()
         });
-        let runner: Runner1<'_, _, 2> = Runner1::new((&driver,));
+        let runner: Runner1<'_, _, 1> = Runner1::new((&driver,));
         let server = runner.server();
 
         let key = [0u8; 16];
