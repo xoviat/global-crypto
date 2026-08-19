@@ -1,4 +1,4 @@
-#![no_std]
+#![cfg_attr(not(test), no_std)]
 
 mod queue;
 mod runner;
@@ -498,23 +498,33 @@ mod tests {
         let nonce = [0u8; 12];
         let aad: &[u8] = &[];
         let plaintext: &[u8] = &[];
-        let mut ciphertext = [0u8; 0];
-        let mut tag = [0u8; 16];
+        let mut ciphertext1 = [0u8; 0];
+        let mut tag1 = [0u8; 16];
+        let mut ciphertext2 = [0u8; 0];
+        let mut tag2 = [0u8; 16];
 
         let mut fut1 =
-            server.aes_gcm_128_encrypt(&key, &nonce, aad, plaintext, &mut ciphertext, &mut tag);
+            server.aes_gcm_128_encrypt(&key, &nonce, aad, plaintext, &mut ciphertext1, &mut tag1);
         let mut cx = ctx();
         let r1 = Pin::new(&mut fut1).poll(&mut cx);
-        assert!(r1.is_pending());
-
-        drop(fut1);
+        eprintln!("[DEBUG] fut1 poll result: {:?}", r1);
+        assert!(r1.is_pending(), "expected fut1 to be pending, got {:?}", r1);
 
         // Queue is now full (capacity 1). Second schedule should fail.
         let mut fut2 =
-            server.aes_gcm_128_encrypt(&key, &nonce, aad, plaintext, &mut ciphertext, &mut tag);
+            server.aes_gcm_128_encrypt(&key, &nonce, aad, plaintext, &mut ciphertext2, &mut tag2);
         let r2 = Pin::new(&mut fut2).poll(&mut cx);
-        assert!(r2.is_ready());
-        assert_eq!(r2, Poll::Ready(Err(CryptoError::HardwareError)));
+        eprintln!("[DEBUG] fut2 poll result: {:?}", r2);
+        assert!(
+            r2.is_ready(),
+            "expected fut2 to be ready (queue full), got {:?}",
+            r2
+        );
+        assert_eq!(
+            r2,
+            Poll::Ready(Err(CryptoError::HardwareError)),
+            "expected HardwareError due to full queue"
+        );
     }
 
     // ------------------------------------------------------------------

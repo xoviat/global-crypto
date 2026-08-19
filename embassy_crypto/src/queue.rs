@@ -304,6 +304,7 @@ impl<const N: usize> OpTable<N> {
     }
 
     /// Immediately free a slot that was just allocated but not yet queued.
+    #[allow(dead_code)]
     pub fn free(&self, handle: OpHandle) {
         let slot = &self.slots[handle.idx];
         slot.state.store(STATE_FREE, Ordering::Release);
