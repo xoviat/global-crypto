@@ -4,7 +4,7 @@ use core::sync::atomic::{AtomicU8, Ordering};
 use core::task::{Context, Poll};
 use embassy_sync::waitqueue::AtomicWaker;
 
-use embassy_crypto_driver::{CryptoDriver, Capabilities, CryptoError};
+use embassy_crypto_driver::{Capabilities, CryptoDriver, CryptoError};
 
 const STATE_FREE: u8 = 0;
 const STATE_PENDING: u8 = 1;
@@ -107,7 +107,14 @@ impl OpKind {
     /// for the duration of the async call.
     pub async unsafe fn execute<D: CryptoDriver>(&self, driver: &mut D) -> Result<(), CryptoError> {
         match self {
-            Self::AesGcm128Encrypt { key, nonce, aad, plaintext, ciphertext, tag } => {
+            Self::AesGcm128Encrypt {
+                key,
+                nonce,
+                aad,
+                plaintext,
+                ciphertext,
+                tag,
+            } => {
                 driver
                     .aes_gcm_128_encrypt(
                         unsafe { &**key },
@@ -119,7 +126,14 @@ impl OpKind {
                     )
                     .await
             }
-            Self::AesGcm128Decrypt { key, nonce, aad, ciphertext, plaintext, tag } => {
+            Self::AesGcm128Decrypt {
+                key,
+                nonce,
+                aad,
+                ciphertext,
+                plaintext,
+                tag,
+            } => {
                 driver
                     .aes_gcm_128_decrypt(
                         unsafe { &**key },
@@ -131,7 +145,14 @@ impl OpKind {
                     )
                     .await
             }
-            Self::AesGcm256Encrypt { key, nonce, aad, plaintext, ciphertext, tag } => {
+            Self::AesGcm256Encrypt {
+                key,
+                nonce,
+                aad,
+                plaintext,
+                ciphertext,
+                tag,
+            } => {
                 driver
                     .aes_gcm_256_encrypt(
                         unsafe { &**key },
@@ -143,7 +164,14 @@ impl OpKind {
                     )
                     .await
             }
-            Self::AesGcm256Decrypt { key, nonce, aad, ciphertext, plaintext, tag } => {
+            Self::AesGcm256Decrypt {
+                key,
+                nonce,
+                aad,
+                ciphertext,
+                plaintext,
+                tag,
+            } => {
                 driver
                     .aes_gcm_256_decrypt(
                         unsafe { &**key },
@@ -156,34 +184,55 @@ impl OpKind {
                     .await
             }
             Self::Sha256 { data, out } => {
-                driver.sha_256(unsafe { &**data }, unsafe { &mut **out }).await
+                driver
+                    .sha_256(unsafe { &**data }, unsafe { &mut **out })
+                    .await
             }
             Self::Sha384 { data, out } => {
-                driver.sha_384(unsafe { &**data }, unsafe { &mut **out }).await
+                driver
+                    .sha_384(unsafe { &**data }, unsafe { &mut **out })
+                    .await
             }
-            Self::P256Keygen { secret_key, public_key } => {
-                driver.p256_keygen(unsafe { &mut **secret_key }, unsafe { &mut **public_key }).await
+            Self::P256Keygen {
+                secret_key,
+                public_key,
+            } => {
+                driver
+                    .p256_keygen(unsafe { &mut **secret_key }, unsafe { &mut **public_key })
+                    .await
             }
-            Self::P256Ecdh { secret_key, public_key, shared_secret } => {
-                driver.p256_ecdh(
-                    unsafe { &**secret_key },
-                    unsafe { &**public_key },
-                    unsafe { &mut **shared_secret },
-                ).await
+            Self::P256Ecdh {
+                secret_key,
+                public_key,
+                shared_secret,
+            } => {
+                driver
+                    .p256_ecdh(unsafe { &**secret_key }, unsafe { &**public_key }, unsafe {
+                        &mut **shared_secret
+                    })
+                    .await
             }
-            Self::P256EcdsaSign { secret_key, digest, signature } => {
-                driver.p256_ecdsa_sign(
-                    unsafe { &**secret_key },
-                    unsafe { &**digest },
-                    unsafe { &mut **signature },
-                ).await
+            Self::P256EcdsaSign {
+                secret_key,
+                digest,
+                signature,
+            } => {
+                driver
+                    .p256_ecdsa_sign(unsafe { &**secret_key }, unsafe { &**digest }, unsafe {
+                        &mut **signature
+                    })
+                    .await
             }
-            Self::P256EcdsaVerify { public_key, digest, signature } => {
-                driver.p256_ecdsa_verify(
-                    unsafe { &**public_key },
-                    unsafe { &**digest },
-                    unsafe { &**signature },
-                ).await
+            Self::P256EcdsaVerify {
+                public_key,
+                digest,
+                signature,
+            } => {
+                driver
+                    .p256_ecdsa_verify(unsafe { &**public_key }, unsafe { &**digest }, unsafe {
+                        &**signature
+                    })
+                    .await
             }
         }
     }
@@ -234,7 +283,12 @@ impl<const N: usize> OpTable<N> {
         for (i, slot) in self.slots.iter().enumerate() {
             if slot
                 .state
-                .compare_exchange(STATE_FREE, STATE_PENDING, Ordering::AcqRel, Ordering::Acquire)
+                .compare_exchange(
+                    STATE_FREE,
+                    STATE_PENDING,
+                    Ordering::AcqRel,
+                    Ordering::Acquire,
+                )
                 .is_ok()
             {
                 unsafe {
@@ -305,9 +359,13 @@ impl<const N: usize> OpTable<N> {
     /// Returns `false` if the slot was cancelled before we got to it.
     pub fn claim_for_run(&self, handle: OpHandle) -> bool {
         let slot = &self.slots[handle.idx];
-        slot
-            .state
-            .compare_exchange(STATE_PENDING, STATE_RUNNING, Ordering::AcqRel, Ordering::Acquire)
+        slot.state
+            .compare_exchange(
+                STATE_PENDING,
+                STATE_RUNNING,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            )
             .is_ok()
     }
 
@@ -336,5 +394,10 @@ impl<const N: usize> OpTable<N> {
     pub unsafe fn kind(&self, handle: OpHandle) -> &OpKind {
         let slot = &self.slots[handle.idx];
         unsafe { &*(*slot.kind.get()).as_mut_ptr() }
+    }
+
+    /// Check if a slot is in the PENDING state.
+    pub fn is_pending(&self, handle: OpHandle) -> bool {
+        self.slots[handle.idx].state.load(Ordering::Acquire) == STATE_PENDING
     }
 }
