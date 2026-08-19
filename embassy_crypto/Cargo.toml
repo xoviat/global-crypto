@@ -10,5 +10,5 @@ embassy-sync = { version = "0.6", default-features = false }
 embassy-futures = { version = "0.1", default-features = false }
 
 [dev-dependencies]
-tokio = { version = "1", features = ["rt", "macros"] }
+tokio = { version = "1", features = ["rt", "macros", "time"] }
 critical-section = { version = "1", features = ["std"] }

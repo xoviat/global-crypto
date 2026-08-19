@@ -19,6 +19,7 @@ pub struct OpHandle {
 }
 
 /// Discriminated union of all async operations the runner can schedule.
+#[derive(Clone, Copy)]
 pub enum OpKind {
     AesGcm128Encrypt {
         key: *const [u8; 16],
@@ -80,6 +81,8 @@ pub enum OpKind {
         signature: *const [u8; 64],
     },
 }
+
+unsafe impl Sync for OpKind {}
 
 impl OpKind {
     /// Which capability is required to execute this operation?
@@ -300,11 +303,11 @@ impl<const N: usize> OpTable<N> {
         None
     }
 
-    // Immediately free a slot that was just allocated but not yet queued.
-    //    pub fn free(&self, handle: OpHandle) {
-    //        let slot = &self.slots[handle.idx];
-    //        slot.state.store(STATE_FREE, Ordering::Release);
-    //    }
+    /// Immediately free a slot that was just allocated but not yet queued.
+    pub fn free(&self, handle: OpHandle) {
+        let slot = &self.slots[handle.idx];
+        slot.state.store(STATE_FREE, Ordering::Release);
+    }
 
     /// Poll a handle. Returns `Pending` while the worker is still running.
     /// On `Ready`, the slot is freed automatically.

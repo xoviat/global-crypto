@@ -99,11 +99,14 @@ async fn driver_worker<D: CryptoDriver, const T: usize>(
         for i in 0..T {
             let handle = OpHandle { idx: i };
             if op_table.is_pending(handle) {
-                let kind = unsafe { op_table.kind(handle) };
-                if driver_caps.contains(kind.required_caps()) {
+                let caps_match = {
+                    let kind = unsafe { op_table.kind(handle) };
+                    driver_caps.contains(kind.required_caps())
+                };
+                if caps_match {
                     if op_table.claim_for_run(handle) {
                         let mut guard = driver.lock().await;
-                        let result = unsafe { kind.execute(&mut *guard).await };
+                        let result = unsafe { op_table.kind(handle).execute(&mut *guard).await };
                         op_table.complete(handle, result);
                         found = true;
                         break;

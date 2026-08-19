@@ -1,5 +1,5 @@
-use core::future::Future;
 use crate::types::{Capabilities, CryptoError};
+use core::future::Future;
 
 /// Object-safe subset of the driver interface.
 ///

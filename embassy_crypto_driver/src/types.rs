@@ -40,6 +40,12 @@ impl Capabilities {
     }
 }
 
+impl Default for Capabilities {
+    fn default() -> Self {
+        Self(0)
+    }
+}
+
 impl core::ops::BitOr for Capabilities {
     type Output = Self;
     #[inline]

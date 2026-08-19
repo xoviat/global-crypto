@@ -393,11 +393,7 @@ impl Drop for Sha384Future<'_> {
 }
 
 impl CryptoServer<'_> {
-    pub fn sha_256<'a>(
-        &'a self,
-        data: &'a [u8],
-        out: &'a mut [u8; 32],
-    ) -> Sha256Future<'a> {
+    pub fn sha_256<'a>(&'a self, data: &'a [u8], out: &'a mut [u8; 32]) -> Sha256Future<'a> {
         Sha256Future {
             backend: self.backend,
             data,
@@ -406,11 +402,7 @@ impl CryptoServer<'_> {
         }
     }
 
-    pub fn sha_384<'a>(
-        &'a self,
-        data: &'a [u8],
-        out: &'a mut [u8; 48],
-    ) -> Sha384Future<'a> {
+    pub fn sha_384<'a>(&'a self, data: &'a [u8], out: &'a mut [u8; 48]) -> Sha384Future<'a> {
         Sha384Future {
             backend: self.backend,
             data,
@@ -438,7 +430,9 @@ impl Future for P256KeygenFuture<'_> {
         let this = &mut *self;
         match this.handle {
             None => {
-                let handle = this.backend.schedule_p256_keygen(this.secret_key, this.public_key)?;
+                let handle = this
+                    .backend
+                    .schedule_p256_keygen(this.secret_key, this.public_key)?;
                 this.handle = Some(handle);
                 Poll::Pending
             }
