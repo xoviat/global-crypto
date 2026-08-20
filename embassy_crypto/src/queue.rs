@@ -343,7 +343,7 @@ impl<const N: usize> OpTable<N> {
         }
     }
 
-    /// Cancel an in-flight operation. Only effective if still `PENDING`.
+    /// Cancel an in-flight operation. Effective if PENDING or RUNNING.
     pub fn cancel(&self, handle: OpHandle) {
         let slot = &self.slots[handle.idx];
         let state = slot.state.load(Ordering::Acquire);
@@ -355,8 +355,16 @@ impl<const N: usize> OpTable<N> {
                 Ordering::Acquire,
             );
             slot.waker.wake();
+        } else if state == STATE_RUNNING {
+            let _ = slot.state.compare_exchange(
+                STATE_RUNNING,
+                STATE_CANCELLED,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            );
+            slot.waker.wake();
         }
-        // If RUNNING or COMPLETE, too late to cancel.
+        // If COMPLETE or already FREE: nothing to do.
     }
 
     /// Called by a worker to claim a `PENDING` slot.
@@ -403,5 +411,15 @@ impl<const N: usize> OpTable<N> {
     /// Check if a slot is in the PENDING state.
     pub fn is_pending(&self, handle: OpHandle) -> bool {
         self.slots[handle.idx].state.load(Ordering::Acquire) == STATE_PENDING
+    }
+
+    /// Check if a slot has been cancelled.
+    pub fn is_cancelled(&self, handle: OpHandle) -> bool {
+        self.slots[handle.idx].state.load(Ordering::Acquire) == STATE_CANCELLED
+    }
+
+    /// Register a waker to be notified on state change.
+    pub fn register_waker(&self, handle: OpHandle, waker: &core::task::Waker) {
+        self.slots[handle.idx].waker.register(waker);
     }
 }

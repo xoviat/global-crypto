@@ -8,6 +8,7 @@ use embassy_sync::mutex::Mutex;
 use embassy_sync::waitqueue::AtomicWaker;
 
 use embassy_crypto_driver::{BlockingCryptoDriver, Capabilities, CryptoDriver, CryptoError};
+use embassy_futures::select::{Either, select};
 
 use crate::queue::{OpHandle, OpTable};
 
@@ -106,7 +107,27 @@ async fn driver_worker<D: CryptoDriver, const T: usize>(
                 if caps_match {
                     if op_table.claim_for_run(handle) {
                         let mut guard = driver.lock().await;
-                        let result = unsafe { op_table.kind(handle).execute(&mut *guard).await };
+                        let kind = unsafe { op_table.kind(handle) };
+
+                        // Pin the execute future on the stack.
+                        let exec_fut = unsafe { kind.execute(&mut *guard) };
+                        let mut exec_fut = core::pin::pin!(exec_fut);
+
+                        // Future that resolves when this op is cancelled.
+                        let cancel_fut = core::future::poll_fn(|cx| {
+                            if op_table.is_cancelled(handle) {
+                                Poll::Ready(())
+                            } else {
+                                op_table.register_waker(handle, cx.waker());
+                                Poll::Pending
+                            }
+                        });
+
+                        let result = match select(exec_fut.as_mut(), cancel_fut).await {
+                            Either::First(result) => result,
+                            Either::Second(_) => Err(CryptoError::HardwareError),
+                        };
+
                         op_table.complete(handle, result);
                         found = true;
                         break;

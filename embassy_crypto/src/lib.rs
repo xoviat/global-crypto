@@ -339,7 +339,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn op_table_cancel_running_is_too_late() {
+    async fn op_table_cancel_running_frees_slot() {
         let table = queue::OpTable::<2>::new();
         let kind = queue::OpKind::Sha256 {
             data: core::ptr::slice_from_raw_parts(core::ptr::null(), 0),
@@ -347,14 +347,15 @@ mod tests {
         };
         let h = table.alloc(kind).unwrap();
         assert!(table.claim_for_run(h));
-        // Cancel while running does nothing; complete still works.
+        // Cancel while running transitions to CANCELLED.
         table.cancel(h);
+        // complete() sees CANCELLED and frees the slot without storing result.
         table.complete(h, Ok(()));
 
         let mut cx = ctx();
         match table.poll(h, &mut cx) {
-            Poll::Ready(Ok(())) => {}
-            other => panic!("expected Ready(Ok), got {:?}", other),
+            Poll::Ready(Err(CryptoError::HardwareError)) => {}
+            other => panic!("expected Ready(Err(HardwareError)), got {:?}", other),
         }
     }
 
