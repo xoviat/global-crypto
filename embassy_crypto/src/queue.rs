@@ -693,6 +693,12 @@ pub struct OpSlot {
 unsafe impl Send for OpSlot {}
 unsafe impl Sync for OpSlot {}
 
+impl Default for OpSlot {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl OpSlot {
     pub const fn new() -> Self {
         Self {
@@ -711,6 +717,12 @@ impl OpSlot {
 /// If the server future is dropped early, it may transition `PENDING` -> `CANCELLED`.
 pub struct OpTable<const N: usize> {
     slots: [OpSlot; N],
+}
+
+impl<const N: usize> Default for OpTable<N> {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl<const N: usize> OpTable<N> {

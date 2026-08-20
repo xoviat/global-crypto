@@ -1,7 +1,6 @@
 #![allow(dead_code)]
 
-/// Capability flags reported by a driver.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub struct Capabilities(pub u32);
 
 impl Capabilities {
@@ -38,11 +37,10 @@ impl Capabilities {
     pub const fn is_empty(self) -> bool {
         self.0 == 0
     }
-}
 
-impl Default for Capabilities {
-    fn default() -> Self {
-        Self(0)
+    #[inline]
+    pub const fn all() -> Self {
+        Self((1 << 23) - 1)
     }
 }
 
@@ -61,7 +59,6 @@ impl core::ops::BitOrAssign for Capabilities {
     }
 }
 
-/// Errors returned by crypto operations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CryptoError {
     Unsupported,

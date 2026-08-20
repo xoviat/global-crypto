@@ -104,34 +104,32 @@ async fn driver_worker<D: CryptoDriver, const T: usize>(
                     let kind = unsafe { op_table.kind(handle) };
                     driver_caps.contains(kind.required_caps())
                 };
-                if caps_match {
-                    if op_table.claim_for_run(handle) {
-                        let mut guard = driver.lock().await;
-                        let kind = unsafe { op_table.kind(handle) };
+                if caps_match && op_table.claim_for_run(handle) {
+                    let mut guard = driver.lock().await;
+                    let kind = unsafe { op_table.kind(handle) };
 
-                        // Pin the execute future on the stack.
-                        let exec_fut = unsafe { kind.execute(&mut *guard) };
-                        let mut exec_fut = core::pin::pin!(exec_fut);
+                    // Pin the execute future on the stack.
+                    let exec_fut = unsafe { kind.execute(&mut *guard) };
+                    let mut exec_fut = core::pin::pin!(exec_fut);
 
-                        // Future that resolves when this op is cancelled.
-                        let cancel_fut = core::future::poll_fn(|cx| {
-                            if op_table.is_cancelled(handle) {
-                                Poll::Ready(())
-                            } else {
-                                op_table.register_waker(handle, cx.waker());
-                                Poll::Pending
-                            }
-                        });
+                    // Future that resolves when this op is cancelled.
+                    let cancel_fut = core::future::poll_fn(|cx| {
+                        if op_table.is_cancelled(handle) {
+                            Poll::Ready(())
+                        } else {
+                            op_table.register_waker(handle, cx.waker());
+                            Poll::Pending
+                        }
+                    });
 
-                        let result = match select(exec_fut.as_mut(), cancel_fut).await {
-                            Either::First(result) => result,
-                            Either::Second(_) => kind.cancelled_output(),
-                        };
+                    let result = match select(exec_fut.as_mut(), cancel_fut).await {
+                        Either::First(result) => result,
+                        Either::Second(_) => kind.cancelled_output(),
+                    };
 
-                        op_table.complete(handle, result);
-                        found = true;
-                        break;
-                    }
+                    op_table.complete(handle, result);
+                    found = true;
+                    break;
                 }
             }
         }
@@ -147,9 +145,9 @@ async fn driver_worker<D: CryptoDriver, const T: usize>(
 
 /// Broadcast-wake all drivers capable of handling the given operation.
 fn wake_capable(caps: Capabilities, slots: &[DriverSlot], num_drivers: usize) {
-    for i in 0..num_drivers {
-        if slots[i].caps.contains(caps) {
-            slots[i].waker.wake();
+    for slot in slots.iter().take(num_drivers) {
+        if slot.caps.contains(caps) {
+            slot.waker.wake();
         }
     }
 }

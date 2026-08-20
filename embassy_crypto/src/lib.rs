@@ -1,5 +1,4 @@
 #![no_std]
-#![feature(impl_trait_in_assoc_type)]
 
 pub mod queue;
 pub mod runner;
@@ -12,23 +11,18 @@ pub use server::CryptoServer;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
-    use embassy_sync::mutex::Mutex;
 
-    /// A mock driver that claims to support every capability.
     struct MockDriver;
 
     impl BlockingCryptoDriver for MockDriver {
         fn capabilities(&self) -> Capabilities {
             Capabilities::all()
         }
-
-        fn rng_fill(&mut self, dest: &mut [u8]) -> Result<(), CryptoError> {
+        fn blocking_rng_fill(&mut self, dest: &mut [u8]) -> Result<(), CryptoError> {
             dest.fill(0x42);
             Ok(())
         }
-
-        fn aes_128_ecb_encrypt(
+        fn blocking_aes_128_ecb_encrypt(
             &mut self,
             block: &mut [u8; 16],
             _key: &[u8; 16],
@@ -36,8 +30,7 @@ mod tests {
             block.fill(0x01);
             Ok(())
         }
-
-        fn aes_128_ecb_decrypt(
+        fn blocking_aes_128_ecb_decrypt(
             &mut self,
             block: &mut [u8; 16],
             _key: &[u8; 16],
@@ -45,8 +38,7 @@ mod tests {
             block.fill(0x02);
             Ok(())
         }
-
-        fn aes_128_cmac(
+        fn blocking_aes_128_cmac(
             &mut self,
             _key: &[u8; 16],
             _data: &[u8],
@@ -55,8 +47,7 @@ mod tests {
             out.fill(0x03);
             Ok(())
         }
-
-        fn aes_ccm_128_encrypt(
+        fn blocking_aes_ccm_128_encrypt(
             &mut self,
             _key: &[u8; 16],
             _nonce: &[u8],
@@ -69,8 +60,7 @@ mod tests {
             tag.fill(0x11);
             Ok(())
         }
-
-        fn aes_ccm_128_decrypt(
+        fn blocking_aes_ccm_128_decrypt(
             &mut self,
             _key: &[u8; 16],
             _nonce: &[u8],
@@ -82,8 +72,7 @@ mod tests {
             plaintext.fill(0x12);
             Ok(())
         }
-
-        fn aes_ccm8_128_encrypt(
+        fn blocking_aes_ccm8_128_encrypt(
             &mut self,
             _key: &[u8; 16],
             _nonce: &[u8],
@@ -96,8 +85,7 @@ mod tests {
             tag.fill(0x14);
             Ok(())
         }
-
-        fn aes_ccm8_128_decrypt(
+        fn blocking_aes_ccm8_128_decrypt(
             &mut self,
             _key: &[u8; 16],
             _nonce: &[u8],
@@ -109,8 +97,7 @@ mod tests {
             plaintext.fill(0x15);
             Ok(())
         }
-
-        fn p384_keygen(
+        fn blocking_p384_keygen(
             &mut self,
             secret_key: &mut [u8; 48],
             public_key: &mut [u8; 96],
@@ -119,8 +106,7 @@ mod tests {
             public_key.fill(0x31);
             Ok(())
         }
-
-        fn p384_ecdh(
+        fn blocking_p384_ecdh(
             &mut self,
             _secret_key: &[u8; 48],
             _public_key: &[u8; 96],
@@ -129,8 +115,7 @@ mod tests {
             shared_secret.fill(0x32);
             Ok(())
         }
-
-        fn p384_ecdsa_sign(
+        fn blocking_p384_ecdsa_sign(
             &mut self,
             _secret_key: &[u8; 48],
             _digest: &[u8; 48],
@@ -139,8 +124,7 @@ mod tests {
             signature.fill(0x33);
             Ok(())
         }
-
-        fn p384_ecdsa_verify(
+        fn blocking_p384_ecdsa_verify(
             &mut self,
             _public_key: &[u8; 96],
             _digest: &[u8; 48],
@@ -148,8 +132,7 @@ mod tests {
         ) -> Result<(), CryptoError> {
             Ok(())
         }
-
-        fn rsa_sign_pkcs1v15_sha256(
+        fn blocking_rsa_sign_pkcs1v15_sha256(
             &mut self,
             _private_key: &[u8],
             _digest: &[u8; 32],
@@ -158,8 +141,7 @@ mod tests {
             signature.fill(0x40);
             Ok(signature.len())
         }
-
-        fn rsa_verify_pkcs1v15_sha256(
+        fn blocking_rsa_verify_pkcs1v15_sha256(
             &mut self,
             _public_key: &[u8],
             _digest: &[u8; 32],
@@ -167,8 +149,7 @@ mod tests {
         ) -> Result<(), CryptoError> {
             Ok(())
         }
-
-        fn rsa_sign_pkcs1v15_sha384(
+        fn blocking_rsa_sign_pkcs1v15_sha384(
             &mut self,
             _private_key: &[u8],
             _digest: &[u8; 48],
@@ -177,8 +158,7 @@ mod tests {
             signature.fill(0x41);
             Ok(signature.len())
         }
-
-        fn rsa_verify_pkcs1v15_sha384(
+        fn blocking_rsa_verify_pkcs1v15_sha384(
             &mut self,
             _public_key: &[u8],
             _digest: &[u8; 48],
@@ -186,8 +166,7 @@ mod tests {
         ) -> Result<(), CryptoError> {
             Ok(())
         }
-
-        fn rsa_sign_pkcs1v15_sha512(
+        fn blocking_rsa_sign_pkcs1v15_sha512(
             &mut self,
             _private_key: &[u8],
             _digest: &[u8; 64],
@@ -196,8 +175,7 @@ mod tests {
             signature.fill(0x42);
             Ok(signature.len())
         }
-
-        fn rsa_verify_pkcs1v15_sha512(
+        fn blocking_rsa_verify_pkcs1v15_sha512(
             &mut self,
             _public_key: &[u8],
             _digest: &[u8; 64],
@@ -205,8 +183,7 @@ mod tests {
         ) -> Result<(), CryptoError> {
             Ok(())
         }
-
-        fn rsa_sign_pss_sha256(
+        fn blocking_rsa_sign_pss_sha256(
             &mut self,
             _private_key: &[u8],
             _digest: &[u8; 32],
@@ -215,8 +192,7 @@ mod tests {
             signature.fill(0x50);
             Ok(signature.len())
         }
-
-        fn rsa_verify_pss_sha256(
+        fn blocking_rsa_verify_pss_sha256(
             &mut self,
             _public_key: &[u8],
             _digest: &[u8; 32],
@@ -224,8 +200,7 @@ mod tests {
         ) -> Result<(), CryptoError> {
             Ok(())
         }
-
-        fn rsa_sign_pss_sha384(
+        fn blocking_rsa_sign_pss_sha384(
             &mut self,
             _private_key: &[u8],
             _digest: &[u8; 48],
@@ -234,8 +209,7 @@ mod tests {
             signature.fill(0x51);
             Ok(signature.len())
         }
-
-        fn rsa_verify_pss_sha384(
+        fn blocking_rsa_verify_pss_sha384(
             &mut self,
             _public_key: &[u8],
             _digest: &[u8; 48],
@@ -243,8 +217,7 @@ mod tests {
         ) -> Result<(), CryptoError> {
             Ok(())
         }
-
-        fn rsa_sign_pss_sha512(
+        fn blocking_rsa_sign_pss_sha512(
             &mut self,
             _private_key: &[u8],
             _digest: &[u8; 64],
@@ -253,8 +226,7 @@ mod tests {
             signature.fill(0x52);
             Ok(signature.len())
         }
-
-        fn rsa_verify_pss_sha512(
+        fn blocking_rsa_verify_pss_sha512(
             &mut self,
             _public_key: &[u8],
             _digest: &[u8; 64],
@@ -278,7 +250,6 @@ mod tests {
             tag.fill(0x05);
             Ok(())
         }
-
         async fn aes_gcm_128_decrypt(
             &mut self,
             _key: &[u8; 16],
@@ -291,7 +262,6 @@ mod tests {
             plaintext.fill(0x06);
             Ok(())
         }
-
         async fn aes_gcm_256_encrypt(
             &mut self,
             _key: &[u8; 32],
@@ -305,7 +275,6 @@ mod tests {
             tag.fill(0x08);
             Ok(())
         }
-
         async fn aes_gcm_256_decrypt(
             &mut self,
             _key: &[u8; 32],
@@ -318,7 +287,6 @@ mod tests {
             plaintext.fill(0x09);
             Ok(())
         }
-
         async fn aes_ccm_128_encrypt(
             &mut self,
             _key: &[u8; 16],
@@ -332,7 +300,6 @@ mod tests {
             tag.fill(0x11);
             Ok(())
         }
-
         async fn aes_ccm_128_decrypt(
             &mut self,
             _key: &[u8; 16],
@@ -345,7 +312,6 @@ mod tests {
             plaintext.fill(0x12);
             Ok(())
         }
-
         async fn aes_ccm8_128_encrypt(
             &mut self,
             _key: &[u8; 16],
@@ -359,7 +325,6 @@ mod tests {
             tag.fill(0x14);
             Ok(())
         }
-
         async fn aes_ccm8_128_decrypt(
             &mut self,
             _key: &[u8; 16],
@@ -372,17 +337,14 @@ mod tests {
             plaintext.fill(0x15);
             Ok(())
         }
-
         async fn sha_256(&mut self, _data: &[u8], out: &mut [u8; 32]) -> Result<(), CryptoError> {
             out.fill(0x0A);
             Ok(())
         }
-
         async fn sha_384(&mut self, _data: &[u8], out: &mut [u8; 48]) -> Result<(), CryptoError> {
             out.fill(0x0B);
             Ok(())
         }
-
         async fn p256_keygen(
             &mut self,
             secret_key: &mut [u8; 32],
@@ -392,7 +354,6 @@ mod tests {
             public_key.fill(0x0D);
             Ok(())
         }
-
         async fn p256_ecdh(
             &mut self,
             _secret_key: &[u8; 32],
@@ -402,7 +363,6 @@ mod tests {
             shared_secret.fill(0x0E);
             Ok(())
         }
-
         async fn p256_ecdsa_sign(
             &mut self,
             _secret_key: &[u8; 32],
@@ -412,7 +372,6 @@ mod tests {
             signature.fill(0x0F);
             Ok(())
         }
-
         async fn p256_ecdsa_verify(
             &mut self,
             _public_key: &[u8; 64],
@@ -421,7 +380,6 @@ mod tests {
         ) -> Result<(), CryptoError> {
             Ok(())
         }
-
         async fn p384_keygen(
             &mut self,
             secret_key: &mut [u8; 48],
@@ -431,7 +389,6 @@ mod tests {
             public_key.fill(0x31);
             Ok(())
         }
-
         async fn p384_ecdh(
             &mut self,
             _secret_key: &[u8; 48],
@@ -441,7 +398,6 @@ mod tests {
             shared_secret.fill(0x32);
             Ok(())
         }
-
         async fn p384_ecdsa_sign(
             &mut self,
             _secret_key: &[u8; 48],
@@ -451,7 +407,6 @@ mod tests {
             signature.fill(0x33);
             Ok(())
         }
-
         async fn p384_ecdsa_verify(
             &mut self,
             _public_key: &[u8; 96],
@@ -460,7 +415,6 @@ mod tests {
         ) -> Result<(), CryptoError> {
             Ok(())
         }
-
         async fn rsa_sign_pkcs1v15_sha256(
             &mut self,
             _private_key: &[u8],
@@ -470,7 +424,6 @@ mod tests {
             signature.fill(0x40);
             Ok(signature.len())
         }
-
         async fn rsa_verify_pkcs1v15_sha256(
             &mut self,
             _public_key: &[u8],
@@ -479,7 +432,6 @@ mod tests {
         ) -> Result<(), CryptoError> {
             Ok(())
         }
-
         async fn rsa_sign_pkcs1v15_sha384(
             &mut self,
             _private_key: &[u8],
@@ -489,7 +441,6 @@ mod tests {
             signature.fill(0x41);
             Ok(signature.len())
         }
-
         async fn rsa_verify_pkcs1v15_sha384(
             &mut self,
             _public_key: &[u8],
@@ -498,7 +449,6 @@ mod tests {
         ) -> Result<(), CryptoError> {
             Ok(())
         }
-
         async fn rsa_sign_pkcs1v15_sha512(
             &mut self,
             _private_key: &[u8],
@@ -508,7 +458,6 @@ mod tests {
             signature.fill(0x42);
             Ok(signature.len())
         }
-
         async fn rsa_verify_pkcs1v15_sha512(
             &mut self,
             _public_key: &[u8],
@@ -517,7 +466,6 @@ mod tests {
         ) -> Result<(), CryptoError> {
             Ok(())
         }
-
         async fn rsa_sign_pss_sha256(
             &mut self,
             _private_key: &[u8],
@@ -527,7 +475,6 @@ mod tests {
             signature.fill(0x50);
             Ok(signature.len())
         }
-
         async fn rsa_verify_pss_sha256(
             &mut self,
             _public_key: &[u8],
@@ -536,7 +483,6 @@ mod tests {
         ) -> Result<(), CryptoError> {
             Ok(())
         }
-
         async fn rsa_sign_pss_sha384(
             &mut self,
             _private_key: &[u8],
@@ -546,7 +492,6 @@ mod tests {
             signature.fill(0x51);
             Ok(signature.len())
         }
-
         async fn rsa_verify_pss_sha384(
             &mut self,
             _public_key: &[u8],
@@ -555,7 +500,6 @@ mod tests {
         ) -> Result<(), CryptoError> {
             Ok(())
         }
-
         async fn rsa_sign_pss_sha512(
             &mut self,
             _private_key: &[u8],
@@ -565,7 +509,6 @@ mod tests {
             signature.fill(0x52);
             Ok(signature.len())
         }
-
         async fn rsa_verify_pss_sha512(
             &mut self,
             _public_key: &[u8],
@@ -591,17 +534,16 @@ mod tests {
 
     #[test]
     fn test_blocking_fast_path() {
-        let driver = MockDriver;
+        let mut driver = MockDriver;
         let mut block = [0u8; 16];
-        driver.aes_128_ecb_encrypt(&mut block, &[0u8; 16]).unwrap();
+        driver
+            .blocking_aes_128_ecb_encrypt(&mut block, &[0u8; 16])
+            .unwrap();
         assert_eq!(block, [0x01; 16]);
     }
 
     #[test]
     fn test_async_via_runner() {
-        // This test just verifies compilation; full async tests would need an executor.
         let _driver = MockDriver;
-        // let runner = CryptoRunner::new((&Mutex::new(driver),));
-        // let _server = runner.server();
     }
 }

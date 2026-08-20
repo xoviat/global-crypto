@@ -10,37 +10,37 @@ pub struct CryptoServer<'a> {
 }
 
 impl CryptoServer<'_> {
-    pub fn rng_fill(&self, dest: &mut [u8]) -> Result<(), CryptoError> {
+    pub fn blocking_rng_fill(&self, dest: &mut [u8]) -> Result<(), CryptoError> {
         self.backend
-            .try_blocking(Capabilities::RNG, &mut |drv| drv.rng_fill(dest))
+            .try_blocking(Capabilities::RNG, &mut |drv| drv.blocking_rng_fill(dest))
             .unwrap_or(Err(CryptoError::HardwareError))
     }
 
-    pub fn aes_128_ecb_encrypt(
+    pub fn blocking_aes_128_ecb_encrypt(
         &self,
         block: &mut [u8; 16],
         key: &[u8; 16],
     ) -> Result<(), CryptoError> {
         self.backend
             .try_blocking(Capabilities::AES_128_ECB, &mut |drv| {
-                drv.aes_128_ecb_encrypt(block, key)
+                drv.blocking_aes_128_ecb_encrypt(block, key)
             })
             .unwrap_or(Err(CryptoError::HardwareError))
     }
 
-    pub fn aes_128_ecb_decrypt(
+    pub fn blocking_aes_128_ecb_decrypt(
         &self,
         block: &mut [u8; 16],
         key: &[u8; 16],
     ) -> Result<(), CryptoError> {
         self.backend
             .try_blocking(Capabilities::AES_128_ECB, &mut |drv| {
-                drv.aes_128_ecb_decrypt(block, key)
+                drv.blocking_aes_128_ecb_decrypt(block, key)
             })
             .unwrap_or(Err(CryptoError::HardwareError))
     }
 
-    pub fn aes_128_cmac(
+    pub fn blocking_aes_128_cmac(
         &self,
         key: &[u8; 16],
         data: &[u8],
@@ -48,12 +48,12 @@ impl CryptoServer<'_> {
     ) -> Result<(), CryptoError> {
         self.backend
             .try_blocking(Capabilities::AES_128_CMAC, &mut |drv| {
-                drv.aes_128_cmac(key, data, out)
+                drv.blocking_aes_128_cmac(key, data, out)
             })
             .unwrap_or(Err(CryptoError::HardwareError))
     }
 
-    pub fn aes_ccm_128_encrypt(
+    pub fn blocking_aes_ccm_128_encrypt(
         &self,
         key: &[u8; 16],
         nonce: &[u8],
@@ -64,12 +64,12 @@ impl CryptoServer<'_> {
     ) -> Result<(), CryptoError> {
         self.backend
             .try_blocking(Capabilities::AES_128_CCM, &mut |drv| {
-                drv.aes_ccm_128_encrypt(key, nonce, aad, plaintext, ciphertext, tag)
+                drv.blocking_aes_ccm_128_encrypt(key, nonce, aad, plaintext, ciphertext, tag)
             })
             .unwrap_or(Err(CryptoError::HardwareError))
     }
 
-    pub fn aes_ccm_128_decrypt(
+    pub fn blocking_aes_ccm_128_decrypt(
         &self,
         key: &[u8; 16],
         nonce: &[u8],
@@ -80,12 +80,12 @@ impl CryptoServer<'_> {
     ) -> Result<(), CryptoError> {
         self.backend
             .try_blocking(Capabilities::AES_128_CCM, &mut |drv| {
-                drv.aes_ccm_128_decrypt(key, nonce, aad, ciphertext, plaintext, tag)
+                drv.blocking_aes_ccm_128_decrypt(key, nonce, aad, ciphertext, plaintext, tag)
             })
             .unwrap_or(Err(CryptoError::HardwareError))
     }
 
-    pub fn aes_ccm8_128_encrypt(
+    pub fn blocking_aes_ccm8_128_encrypt(
         &self,
         key: &[u8; 16],
         nonce: &[u8],
@@ -96,12 +96,12 @@ impl CryptoServer<'_> {
     ) -> Result<(), CryptoError> {
         self.backend
             .try_blocking(Capabilities::AES_128_CCM8, &mut |drv| {
-                drv.aes_ccm8_128_encrypt(key, nonce, aad, plaintext, ciphertext, tag)
+                drv.blocking_aes_ccm8_128_encrypt(key, nonce, aad, plaintext, ciphertext, tag)
             })
             .unwrap_or(Err(CryptoError::HardwareError))
     }
 
-    pub fn aes_ccm8_128_decrypt(
+    pub fn blocking_aes_ccm8_128_decrypt(
         &self,
         key: &[u8; 16],
         nonce: &[u8],
@@ -112,24 +112,24 @@ impl CryptoServer<'_> {
     ) -> Result<(), CryptoError> {
         self.backend
             .try_blocking(Capabilities::AES_128_CCM8, &mut |drv| {
-                drv.aes_ccm8_128_decrypt(key, nonce, aad, ciphertext, plaintext, tag)
+                drv.blocking_aes_ccm8_128_decrypt(key, nonce, aad, ciphertext, plaintext, tag)
             })
             .unwrap_or(Err(CryptoError::HardwareError))
     }
 
-    pub fn p384_keygen(
+    pub fn blocking_p384_keygen(
         &self,
         secret_key: &mut [u8; 48],
         public_key: &mut [u8; 96],
     ) -> Result<(), CryptoError> {
         self.backend
             .try_blocking(Capabilities::P384_KEYGEN, &mut |drv| {
-                drv.p384_keygen(secret_key, public_key)
+                drv.blocking_p384_keygen(secret_key, public_key)
             })
             .unwrap_or(Err(CryptoError::HardwareError))
     }
 
-    pub fn p384_ecdh(
+    pub fn blocking_p384_ecdh(
         &self,
         secret_key: &[u8; 48],
         public_key: &[u8; 96],
@@ -137,12 +137,12 @@ impl CryptoServer<'_> {
     ) -> Result<(), CryptoError> {
         self.backend
             .try_blocking(Capabilities::P384_ECDH, &mut |drv| {
-                drv.p384_ecdh(secret_key, public_key, shared_secret)
+                drv.blocking_p384_ecdh(secret_key, public_key, shared_secret)
             })
             .unwrap_or(Err(CryptoError::HardwareError))
     }
 
-    pub fn p384_ecdsa_sign(
+    pub fn blocking_p384_ecdsa_sign(
         &self,
         secret_key: &[u8; 48],
         digest: &[u8; 48],
@@ -150,12 +150,12 @@ impl CryptoServer<'_> {
     ) -> Result<(), CryptoError> {
         self.backend
             .try_blocking(Capabilities::P384_ECDSA_SIGN, &mut |drv| {
-                drv.p384_ecdsa_sign(secret_key, digest, signature)
+                drv.blocking_p384_ecdsa_sign(secret_key, digest, signature)
             })
             .unwrap_or(Err(CryptoError::HardwareError))
     }
 
-    pub fn p384_ecdsa_verify(
+    pub fn blocking_p384_ecdsa_verify(
         &self,
         public_key: &[u8; 96],
         digest: &[u8; 48],
@@ -163,12 +163,12 @@ impl CryptoServer<'_> {
     ) -> Result<(), CryptoError> {
         self.backend
             .try_blocking(Capabilities::P384_ECDSA_VERIFY, &mut |drv| {
-                drv.p384_ecdsa_verify(public_key, digest, signature)
+                drv.blocking_p384_ecdsa_verify(public_key, digest, signature)
             })
             .unwrap_or(Err(CryptoError::HardwareError))
     }
 
-    pub fn rsa_sign_pkcs1v15_sha256(
+    pub fn blocking_rsa_sign_pkcs1v15_sha256(
         &self,
         private_key: &[u8],
         digest: &[u8; 32],
@@ -176,12 +176,12 @@ impl CryptoServer<'_> {
     ) -> Result<usize, CryptoError> {
         self.backend
             .try_blocking_size(Capabilities::RSA_PKCS1V15_SHA256, &mut |drv| {
-                drv.rsa_sign_pkcs1v15_sha256(private_key, digest, signature)
+                drv.blocking_rsa_sign_pkcs1v15_sha256(private_key, digest, signature)
             })
             .unwrap_or(Err(CryptoError::HardwareError))
     }
 
-    pub fn rsa_verify_pkcs1v15_sha256(
+    pub fn blocking_rsa_verify_pkcs1v15_sha256(
         &self,
         public_key: &[u8],
         digest: &[u8; 32],
@@ -189,12 +189,12 @@ impl CryptoServer<'_> {
     ) -> Result<(), CryptoError> {
         self.backend
             .try_blocking(Capabilities::RSA_PKCS1V15_SHA256, &mut |drv| {
-                drv.rsa_verify_pkcs1v15_sha256(public_key, digest, signature)
+                drv.blocking_rsa_verify_pkcs1v15_sha256(public_key, digest, signature)
             })
             .unwrap_or(Err(CryptoError::HardwareError))
     }
 
-    pub fn rsa_sign_pkcs1v15_sha384(
+    pub fn blocking_rsa_sign_pkcs1v15_sha384(
         &self,
         private_key: &[u8],
         digest: &[u8; 48],
@@ -202,12 +202,12 @@ impl CryptoServer<'_> {
     ) -> Result<usize, CryptoError> {
         self.backend
             .try_blocking_size(Capabilities::RSA_PKCS1V15_SHA384, &mut |drv| {
-                drv.rsa_sign_pkcs1v15_sha384(private_key, digest, signature)
+                drv.blocking_rsa_sign_pkcs1v15_sha384(private_key, digest, signature)
             })
             .unwrap_or(Err(CryptoError::HardwareError))
     }
 
-    pub fn rsa_verify_pkcs1v15_sha384(
+    pub fn blocking_rsa_verify_pkcs1v15_sha384(
         &self,
         public_key: &[u8],
         digest: &[u8; 48],
@@ -215,12 +215,12 @@ impl CryptoServer<'_> {
     ) -> Result<(), CryptoError> {
         self.backend
             .try_blocking(Capabilities::RSA_PKCS1V15_SHA384, &mut |drv| {
-                drv.rsa_verify_pkcs1v15_sha384(public_key, digest, signature)
+                drv.blocking_rsa_verify_pkcs1v15_sha384(public_key, digest, signature)
             })
             .unwrap_or(Err(CryptoError::HardwareError))
     }
 
-    pub fn rsa_sign_pkcs1v15_sha512(
+    pub fn blocking_rsa_sign_pkcs1v15_sha512(
         &self,
         private_key: &[u8],
         digest: &[u8; 64],
@@ -228,12 +228,12 @@ impl CryptoServer<'_> {
     ) -> Result<usize, CryptoError> {
         self.backend
             .try_blocking_size(Capabilities::RSA_PKCS1V15_SHA512, &mut |drv| {
-                drv.rsa_sign_pkcs1v15_sha512(private_key, digest, signature)
+                drv.blocking_rsa_sign_pkcs1v15_sha512(private_key, digest, signature)
             })
             .unwrap_or(Err(CryptoError::HardwareError))
     }
 
-    pub fn rsa_verify_pkcs1v15_sha512(
+    pub fn blocking_rsa_verify_pkcs1v15_sha512(
         &self,
         public_key: &[u8],
         digest: &[u8; 64],
@@ -241,12 +241,12 @@ impl CryptoServer<'_> {
     ) -> Result<(), CryptoError> {
         self.backend
             .try_blocking(Capabilities::RSA_PKCS1V15_SHA512, &mut |drv| {
-                drv.rsa_verify_pkcs1v15_sha512(public_key, digest, signature)
+                drv.blocking_rsa_verify_pkcs1v15_sha512(public_key, digest, signature)
             })
             .unwrap_or(Err(CryptoError::HardwareError))
     }
 
-    pub fn rsa_sign_pss_sha256(
+    pub fn blocking_rsa_sign_pss_sha256(
         &self,
         private_key: &[u8],
         digest: &[u8; 32],
@@ -254,12 +254,12 @@ impl CryptoServer<'_> {
     ) -> Result<usize, CryptoError> {
         self.backend
             .try_blocking_size(Capabilities::RSA_PSS_SHA256, &mut |drv| {
-                drv.rsa_sign_pss_sha256(private_key, digest, signature)
+                drv.blocking_rsa_sign_pss_sha256(private_key, digest, signature)
             })
             .unwrap_or(Err(CryptoError::HardwareError))
     }
 
-    pub fn rsa_verify_pss_sha256(
+    pub fn blocking_rsa_verify_pss_sha256(
         &self,
         public_key: &[u8],
         digest: &[u8; 32],
@@ -267,12 +267,12 @@ impl CryptoServer<'_> {
     ) -> Result<(), CryptoError> {
         self.backend
             .try_blocking(Capabilities::RSA_PSS_SHA256, &mut |drv| {
-                drv.rsa_verify_pss_sha256(public_key, digest, signature)
+                drv.blocking_rsa_verify_pss_sha256(public_key, digest, signature)
             })
             .unwrap_or(Err(CryptoError::HardwareError))
     }
 
-    pub fn rsa_sign_pss_sha384(
+    pub fn blocking_rsa_sign_pss_sha384(
         &self,
         private_key: &[u8],
         digest: &[u8; 48],
@@ -280,12 +280,12 @@ impl CryptoServer<'_> {
     ) -> Result<usize, CryptoError> {
         self.backend
             .try_blocking_size(Capabilities::RSA_PSS_SHA384, &mut |drv| {
-                drv.rsa_sign_pss_sha384(private_key, digest, signature)
+                drv.blocking_rsa_sign_pss_sha384(private_key, digest, signature)
             })
             .unwrap_or(Err(CryptoError::HardwareError))
     }
 
-    pub fn rsa_verify_pss_sha384(
+    pub fn blocking_rsa_verify_pss_sha384(
         &self,
         public_key: &[u8],
         digest: &[u8; 48],
@@ -293,12 +293,12 @@ impl CryptoServer<'_> {
     ) -> Result<(), CryptoError> {
         self.backend
             .try_blocking(Capabilities::RSA_PSS_SHA384, &mut |drv| {
-                drv.rsa_verify_pss_sha384(public_key, digest, signature)
+                drv.blocking_rsa_verify_pss_sha384(public_key, digest, signature)
             })
             .unwrap_or(Err(CryptoError::HardwareError))
     }
 
-    pub fn rsa_sign_pss_sha512(
+    pub fn blocking_rsa_sign_pss_sha512(
         &self,
         private_key: &[u8],
         digest: &[u8; 64],
@@ -306,12 +306,12 @@ impl CryptoServer<'_> {
     ) -> Result<usize, CryptoError> {
         self.backend
             .try_blocking_size(Capabilities::RSA_PSS_SHA512, &mut |drv| {
-                drv.rsa_sign_pss_sha512(private_key, digest, signature)
+                drv.blocking_rsa_sign_pss_sha512(private_key, digest, signature)
             })
             .unwrap_or(Err(CryptoError::HardwareError))
     }
 
-    pub fn rsa_verify_pss_sha512(
+    pub fn blocking_rsa_verify_pss_sha512(
         &self,
         public_key: &[u8],
         digest: &[u8; 64],
@@ -319,7 +319,7 @@ impl CryptoServer<'_> {
     ) -> Result<(), CryptoError> {
         self.backend
             .try_blocking(Capabilities::RSA_PSS_SHA512, &mut |drv| {
-                drv.rsa_verify_pss_sha512(public_key, digest, signature)
+                drv.blocking_rsa_verify_pss_sha512(public_key, digest, signature)
             })
             .unwrap_or(Err(CryptoError::HardwareError))
     }
