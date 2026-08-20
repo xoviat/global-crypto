@@ -12,6 +12,33 @@ const STATE_RUNNING: u8 = 2;
 const STATE_COMPLETE: u8 = 3;
 const STATE_CANCELLED: u8 = 4;
 
+/// Result of an async operation, discriminating between unit and size outputs.
+#[derive(Clone, Copy, Debug)]
+pub enum OpOutput {
+    Unit(Result<(), CryptoError>),
+    Size(Result<usize, CryptoError>),
+}
+
+impl OpOutput {
+    /// Convert to a unit result, treating size errors as unit errors.
+    pub fn into_unit(self) -> Result<(), CryptoError> {
+        match self {
+            OpOutput::Unit(r) => r,
+            OpOutput::Size(Err(e)) => Err(e),
+            OpOutput::Size(Ok(_)) => Err(CryptoError::HardwareError),
+        }
+    }
+
+    /// Convert to a size result, treating unit errors as size errors.
+    pub fn into_size(self) -> Result<usize, CryptoError> {
+        match self {
+            OpOutput::Size(r) => r,
+            OpOutput::Unit(Err(e)) => Err(e),
+            OpOutput::Unit(Ok(())) => Err(CryptoError::HardwareError),
+        }
+    }
+}
+
 /// Opaque handle to an in-flight operation in the `OpTable`.
 #[derive(Clone, Copy)]
 pub struct OpHandle {
@@ -53,6 +80,38 @@ pub enum OpKind {
         plaintext: *mut [u8],
         tag: *const [u8; 16],
     },
+    AesCcm128Encrypt {
+        key: *const [u8; 16],
+        nonce: *const [u8],
+        aad: *const [u8],
+        plaintext: *const [u8],
+        ciphertext: *mut [u8],
+        tag: *mut [u8; 16],
+    },
+    AesCcm128Decrypt {
+        key: *const [u8; 16],
+        nonce: *const [u8],
+        aad: *const [u8],
+        ciphertext: *const [u8],
+        plaintext: *mut [u8],
+        tag: *const [u8; 16],
+    },
+    AesCcm8_128Encrypt {
+        key: *const [u8; 16],
+        nonce: *const [u8],
+        aad: *const [u8],
+        plaintext: *const [u8],
+        ciphertext: *mut [u8],
+        tag: *mut [u8; 8],
+    },
+    AesCcm8_128Decrypt {
+        key: *const [u8; 16],
+        nonce: *const [u8],
+        aad: *const [u8],
+        ciphertext: *const [u8],
+        plaintext: *mut [u8],
+        tag: *const [u8; 8],
+    },
     Sha256 {
         data: *const [u8],
         out: *mut [u8; 32],
@@ -80,6 +139,85 @@ pub enum OpKind {
         digest: *const [u8; 32],
         signature: *const [u8; 64],
     },
+    P384Keygen {
+        secret_key: *mut [u8; 48],
+        public_key: *mut [u8; 96],
+    },
+    P384Ecdh {
+        secret_key: *const [u8; 48],
+        public_key: *const [u8; 96],
+        shared_secret: *mut [u8; 48],
+    },
+    P384EcdsaSign {
+        secret_key: *const [u8; 48],
+        digest: *const [u8; 48],
+        signature: *mut [u8; 96],
+    },
+    P384EcdsaVerify {
+        public_key: *const [u8; 96],
+        digest: *const [u8; 48],
+        signature: *const [u8; 96],
+    },
+    RsaSignPkcs1v15Sha256 {
+        private_key: *const [u8],
+        digest: *const [u8; 32],
+        signature: *mut [u8],
+    },
+    RsaVerifyPkcs1v15Sha256 {
+        public_key: *const [u8],
+        digest: *const [u8; 32],
+        signature: *const [u8],
+    },
+    RsaSignPkcs1v15Sha384 {
+        private_key: *const [u8],
+        digest: *const [u8; 48],
+        signature: *mut [u8],
+    },
+    RsaVerifyPkcs1v15Sha384 {
+        public_key: *const [u8],
+        digest: *const [u8; 48],
+        signature: *const [u8],
+    },
+    RsaSignPkcs1v15Sha512 {
+        private_key: *const [u8],
+        digest: *const [u8; 64],
+        signature: *mut [u8],
+    },
+    RsaVerifyPkcs1v15Sha512 {
+        public_key: *const [u8],
+        digest: *const [u8; 64],
+        signature: *const [u8],
+    },
+    RsaSignPssSha256 {
+        private_key: *const [u8],
+        digest: *const [u8; 32],
+        signature: *mut [u8],
+    },
+    RsaVerifyPssSha256 {
+        public_key: *const [u8],
+        digest: *const [u8; 32],
+        signature: *const [u8],
+    },
+    RsaSignPssSha384 {
+        private_key: *const [u8],
+        digest: *const [u8; 48],
+        signature: *mut [u8],
+    },
+    RsaVerifyPssSha384 {
+        public_key: *const [u8],
+        digest: *const [u8; 48],
+        signature: *const [u8],
+    },
+    RsaSignPssSha512 {
+        private_key: *const [u8],
+        digest: *const [u8; 64],
+        signature: *mut [u8],
+    },
+    RsaVerifyPssSha512 {
+        public_key: *const [u8],
+        digest: *const [u8; 64],
+        signature: *const [u8],
+    },
 }
 
 unsafe impl Sync for OpKind {}
@@ -94,12 +232,53 @@ impl OpKind {
             Self::AesGcm256Encrypt { .. } | Self::AesGcm256Decrypt { .. } => {
                 Capabilities::AES_256_GCM
             }
+            Self::AesCcm128Encrypt { .. } | Self::AesCcm128Decrypt { .. } => {
+                Capabilities::AES_128_CCM
+            }
+            Self::AesCcm8_128Encrypt { .. } | Self::AesCcm8_128Decrypt { .. } => {
+                Capabilities::AES_128_CCM8
+            }
             Self::Sha256 { .. } => Capabilities::SHA_256,
             Self::Sha384 { .. } => Capabilities::SHA_384,
             Self::P256Keygen { .. } => Capabilities::P256_KEYGEN,
             Self::P256Ecdh { .. } => Capabilities::P256_ECDH,
             Self::P256EcdsaSign { .. } => Capabilities::P256_ECDSA_SIGN,
             Self::P256EcdsaVerify { .. } => Capabilities::P256_ECDSA_VERIFY,
+            Self::P384Keygen { .. } => Capabilities::P384_KEYGEN,
+            Self::P384Ecdh { .. } => Capabilities::P384_ECDH,
+            Self::P384EcdsaSign { .. } => Capabilities::P384_ECDSA_SIGN,
+            Self::P384EcdsaVerify { .. } => Capabilities::P384_ECDSA_VERIFY,
+            Self::RsaSignPkcs1v15Sha256 { .. } | Self::RsaVerifyPkcs1v15Sha256 { .. } => {
+                Capabilities::RSA_PKCS1V15_SHA256
+            }
+            Self::RsaSignPkcs1v15Sha384 { .. } | Self::RsaVerifyPkcs1v15Sha384 { .. } => {
+                Capabilities::RSA_PKCS1V15_SHA384
+            }
+            Self::RsaSignPkcs1v15Sha512 { .. } | Self::RsaVerifyPkcs1v15Sha512 { .. } => {
+                Capabilities::RSA_PKCS1V15_SHA512
+            }
+            Self::RsaSignPssSha256 { .. } | Self::RsaVerifyPssSha256 { .. } => {
+                Capabilities::RSA_PSS_SHA256
+            }
+            Self::RsaSignPssSha384 { .. } | Self::RsaVerifyPssSha384 { .. } => {
+                Capabilities::RSA_PSS_SHA384
+            }
+            Self::RsaSignPssSha512 { .. } | Self::RsaVerifyPssSha512 { .. } => {
+                Capabilities::RSA_PSS_SHA512
+            }
+        }
+    }
+
+    /// Return an error output appropriate for this operation kind.
+    pub fn cancelled_output(&self) -> OpOutput {
+        match self {
+            Self::RsaSignPkcs1v15Sha256 { .. }
+            | Self::RsaSignPkcs1v15Sha384 { .. }
+            | Self::RsaSignPkcs1v15Sha512 { .. }
+            | Self::RsaSignPssSha256 { .. }
+            | Self::RsaSignPssSha384 { .. }
+            | Self::RsaSignPssSha512 { .. } => OpOutput::Size(Err(CryptoError::HardwareError)),
+            _ => OpOutput::Unit(Err(CryptoError::HardwareError)),
         }
     }
 
@@ -108,7 +287,7 @@ impl OpKind {
     /// # Safety
     /// All raw pointers stored in this `OpKind` must be valid and unaliased
     /// for the duration of the async call.
-    pub async unsafe fn execute<D: CryptoDriver>(&self, driver: &mut D) -> Result<(), CryptoError> {
+    pub async unsafe fn execute<D: CryptoDriver>(&self, driver: &mut D) -> OpOutput {
         match self {
             Self::AesGcm128Encrypt {
                 key,
@@ -117,7 +296,7 @@ impl OpKind {
                 plaintext,
                 ciphertext,
                 tag,
-            } => {
+            } => OpOutput::Unit(
                 driver
                     .aes_gcm_128_encrypt(
                         unsafe { &**key },
@@ -127,8 +306,8 @@ impl OpKind {
                         unsafe { &mut **ciphertext },
                         unsafe { &mut **tag },
                     )
-                    .await
-            }
+                    .await,
+            ),
             Self::AesGcm128Decrypt {
                 key,
                 nonce,
@@ -136,7 +315,7 @@ impl OpKind {
                 ciphertext,
                 plaintext,
                 tag,
-            } => {
+            } => OpOutput::Unit(
                 driver
                     .aes_gcm_128_decrypt(
                         unsafe { &**key },
@@ -146,8 +325,8 @@ impl OpKind {
                         unsafe { &mut **plaintext },
                         unsafe { &**tag },
                     )
-                    .await
-            }
+                    .await,
+            ),
             Self::AesGcm256Encrypt {
                 key,
                 nonce,
@@ -155,7 +334,7 @@ impl OpKind {
                 plaintext,
                 ciphertext,
                 tag,
-            } => {
+            } => OpOutput::Unit(
                 driver
                     .aes_gcm_256_encrypt(
                         unsafe { &**key },
@@ -165,8 +344,8 @@ impl OpKind {
                         unsafe { &mut **ciphertext },
                         unsafe { &mut **tag },
                     )
-                    .await
-            }
+                    .await,
+            ),
             Self::AesGcm256Decrypt {
                 key,
                 nonce,
@@ -174,7 +353,7 @@ impl OpKind {
                 ciphertext,
                 plaintext,
                 tag,
-            } => {
+            } => OpOutput::Unit(
                 driver
                     .aes_gcm_256_decrypt(
                         unsafe { &**key },
@@ -184,59 +363,320 @@ impl OpKind {
                         unsafe { &mut **plaintext },
                         unsafe { &**tag },
                     )
-                    .await
-            }
-            Self::Sha256 { data, out } => {
+                    .await,
+            ),
+            Self::AesCcm128Encrypt {
+                key,
+                nonce,
+                aad,
+                plaintext,
+                ciphertext,
+                tag,
+            } => OpOutput::Unit(
+                driver
+                    .aes_ccm_128_encrypt(
+                        unsafe { &**key },
+                        unsafe { &**nonce },
+                        unsafe { &**aad },
+                        unsafe { &**plaintext },
+                        unsafe { &mut **ciphertext },
+                        unsafe { &mut **tag },
+                    )
+                    .await,
+            ),
+            Self::AesCcm128Decrypt {
+                key,
+                nonce,
+                aad,
+                ciphertext,
+                plaintext,
+                tag,
+            } => OpOutput::Unit(
+                driver
+                    .aes_ccm_128_decrypt(
+                        unsafe { &**key },
+                        unsafe { &**nonce },
+                        unsafe { &**aad },
+                        unsafe { &**ciphertext },
+                        unsafe { &mut **plaintext },
+                        unsafe { &**tag },
+                    )
+                    .await,
+            ),
+            Self::AesCcm8_128Encrypt {
+                key,
+                nonce,
+                aad,
+                plaintext,
+                ciphertext,
+                tag,
+            } => OpOutput::Unit(
+                driver
+                    .aes_ccm8_128_encrypt(
+                        unsafe { &**key },
+                        unsafe { &**nonce },
+                        unsafe { &**aad },
+                        unsafe { &**plaintext },
+                        unsafe { &mut **ciphertext },
+                        unsafe { &mut **tag },
+                    )
+                    .await,
+            ),
+            Self::AesCcm8_128Decrypt {
+                key,
+                nonce,
+                aad,
+                ciphertext,
+                plaintext,
+                tag,
+            } => OpOutput::Unit(
+                driver
+                    .aes_ccm8_128_decrypt(
+                        unsafe { &**key },
+                        unsafe { &**nonce },
+                        unsafe { &**aad },
+                        unsafe { &**ciphertext },
+                        unsafe { &mut **plaintext },
+                        unsafe { &**tag },
+                    )
+                    .await,
+            ),
+            Self::Sha256 { data, out } => OpOutput::Unit(
                 driver
                     .sha_256(unsafe { &**data }, unsafe { &mut **out })
-                    .await
-            }
-            Self::Sha384 { data, out } => {
+                    .await,
+            ),
+            Self::Sha384 { data, out } => OpOutput::Unit(
                 driver
                     .sha_384(unsafe { &**data }, unsafe { &mut **out })
-                    .await
-            }
+                    .await,
+            ),
             Self::P256Keygen {
                 secret_key,
                 public_key,
-            } => {
+            } => OpOutput::Unit(
                 driver
                     .p256_keygen(unsafe { &mut **secret_key }, unsafe { &mut **public_key })
-                    .await
-            }
+                    .await,
+            ),
             Self::P256Ecdh {
                 secret_key,
                 public_key,
                 shared_secret,
-            } => {
+            } => OpOutput::Unit(
                 driver
                     .p256_ecdh(unsafe { &**secret_key }, unsafe { &**public_key }, unsafe {
                         &mut **shared_secret
                     })
-                    .await
-            }
+                    .await,
+            ),
             Self::P256EcdsaSign {
                 secret_key,
                 digest,
                 signature,
-            } => {
+            } => OpOutput::Unit(
                 driver
                     .p256_ecdsa_sign(unsafe { &**secret_key }, unsafe { &**digest }, unsafe {
                         &mut **signature
                     })
-                    .await
-            }
+                    .await,
+            ),
             Self::P256EcdsaVerify {
                 public_key,
                 digest,
                 signature,
-            } => {
+            } => OpOutput::Unit(
                 driver
                     .p256_ecdsa_verify(unsafe { &**public_key }, unsafe { &**digest }, unsafe {
                         &**signature
                     })
-                    .await
-            }
+                    .await,
+            ),
+            Self::P384Keygen {
+                secret_key,
+                public_key,
+            } => OpOutput::Unit(
+                driver
+                    .p384_keygen(unsafe { &mut **secret_key }, unsafe { &mut **public_key })
+                    .await,
+            ),
+            Self::P384Ecdh {
+                secret_key,
+                public_key,
+                shared_secret,
+            } => OpOutput::Unit(
+                driver
+                    .p384_ecdh(unsafe { &**secret_key }, unsafe { &**public_key }, unsafe {
+                        &mut **shared_secret
+                    })
+                    .await,
+            ),
+            Self::P384EcdsaSign {
+                secret_key,
+                digest,
+                signature,
+            } => OpOutput::Unit(
+                driver
+                    .p384_ecdsa_sign(unsafe { &**secret_key }, unsafe { &**digest }, unsafe {
+                        &mut **signature
+                    })
+                    .await,
+            ),
+            Self::P384EcdsaVerify {
+                public_key,
+                digest,
+                signature,
+            } => OpOutput::Unit(
+                driver
+                    .p384_ecdsa_verify(unsafe { &**public_key }, unsafe { &**digest }, unsafe {
+                        &**signature
+                    })
+                    .await,
+            ),
+            Self::RsaSignPkcs1v15Sha256 {
+                private_key,
+                digest,
+                signature,
+            } => OpOutput::Size(
+                driver
+                    .rsa_sign_pkcs1v15_sha256(
+                        unsafe { &**private_key },
+                        unsafe { &**digest },
+                        unsafe { &mut **signature },
+                    )
+                    .await,
+            ),
+            Self::RsaVerifyPkcs1v15Sha256 {
+                public_key,
+                digest,
+                signature,
+            } => OpOutput::Unit(
+                driver
+                    .rsa_verify_pkcs1v15_sha256(
+                        unsafe { &**public_key },
+                        unsafe { &**digest },
+                        unsafe { &**signature },
+                    )
+                    .await,
+            ),
+            Self::RsaSignPkcs1v15Sha384 {
+                private_key,
+                digest,
+                signature,
+            } => OpOutput::Size(
+                driver
+                    .rsa_sign_pkcs1v15_sha384(
+                        unsafe { &**private_key },
+                        unsafe { &**digest },
+                        unsafe { &mut **signature },
+                    )
+                    .await,
+            ),
+            Self::RsaVerifyPkcs1v15Sha384 {
+                public_key,
+                digest,
+                signature,
+            } => OpOutput::Unit(
+                driver
+                    .rsa_verify_pkcs1v15_sha384(
+                        unsafe { &**public_key },
+                        unsafe { &**digest },
+                        unsafe { &**signature },
+                    )
+                    .await,
+            ),
+            Self::RsaSignPkcs1v15Sha512 {
+                private_key,
+                digest,
+                signature,
+            } => OpOutput::Size(
+                driver
+                    .rsa_sign_pkcs1v15_sha512(
+                        unsafe { &**private_key },
+                        unsafe { &**digest },
+                        unsafe { &mut **signature },
+                    )
+                    .await,
+            ),
+            Self::RsaVerifyPkcs1v15Sha512 {
+                public_key,
+                digest,
+                signature,
+            } => OpOutput::Unit(
+                driver
+                    .rsa_verify_pkcs1v15_sha512(
+                        unsafe { &**public_key },
+                        unsafe { &**digest },
+                        unsafe { &**signature },
+                    )
+                    .await,
+            ),
+            Self::RsaSignPssSha256 {
+                private_key,
+                digest,
+                signature,
+            } => OpOutput::Size(
+                driver
+                    .rsa_sign_pss_sha256(unsafe { &**private_key }, unsafe { &**digest }, unsafe {
+                        &mut **signature
+                    })
+                    .await,
+            ),
+            Self::RsaVerifyPssSha256 {
+                public_key,
+                digest,
+                signature,
+            } => OpOutput::Unit(
+                driver
+                    .rsa_verify_pss_sha256(unsafe { &**public_key }, unsafe { &**digest }, unsafe {
+                        &**signature
+                    })
+                    .await,
+            ),
+            Self::RsaSignPssSha384 {
+                private_key,
+                digest,
+                signature,
+            } => OpOutput::Size(
+                driver
+                    .rsa_sign_pss_sha384(unsafe { &**private_key }, unsafe { &**digest }, unsafe {
+                        &mut **signature
+                    })
+                    .await,
+            ),
+            Self::RsaVerifyPssSha384 {
+                public_key,
+                digest,
+                signature,
+            } => OpOutput::Unit(
+                driver
+                    .rsa_verify_pss_sha384(unsafe { &**public_key }, unsafe { &**digest }, unsafe {
+                        &**signature
+                    })
+                    .await,
+            ),
+            Self::RsaSignPssSha512 {
+                private_key,
+                digest,
+                signature,
+            } => OpOutput::Size(
+                driver
+                    .rsa_sign_pss_sha512(unsafe { &**private_key }, unsafe { &**digest }, unsafe {
+                        &mut **signature
+                    })
+                    .await,
+            ),
+            Self::RsaVerifyPssSha512 {
+                public_key,
+                digest,
+                signature,
+            } => OpOutput::Unit(
+                driver
+                    .rsa_verify_pss_sha512(unsafe { &**public_key }, unsafe { &**digest }, unsafe {
+                        &**signature
+                    })
+                    .await,
+            ),
         }
     }
 }
@@ -245,7 +685,7 @@ impl OpKind {
 pub struct OpSlot {
     state: AtomicU8,
     kind: UnsafeCell<MaybeUninit<OpKind>>,
-    result: UnsafeCell<MaybeUninit<Result<(), CryptoError>>>,
+    result: UnsafeCell<MaybeUninit<OpOutput>>,
     waker: AtomicWaker,
 }
 
@@ -267,8 +707,8 @@ impl OpSlot {
 /// Fixed-size slab allocator for in-flight async operations.
 ///
 /// The server allocates a slot, fills it, and hands the index to a worker.
-/// The worker transitions the slot through `RUNNING` → `COMPLETE`.
-/// If the server future is dropped early, it may transition `PENDING` → `CANCELLED`.
+/// The worker transitions the slot through `RUNNING` -> `COMPLETE`.
+/// If the server future is dropped early, it may transition `PENDING` -> `CANCELLED`.
 pub struct OpTable<const N: usize> {
     slots: [OpSlot; N],
 }
@@ -312,7 +752,7 @@ impl<const N: usize> OpTable<N> {
 
     /// Poll a handle. Returns `Pending` while the worker is still running.
     /// On `Ready`, the slot is freed automatically.
-    pub fn poll(&self, handle: OpHandle, cx: &mut Context<'_>) -> Poll<Result<(), CryptoError>> {
+    pub fn poll(&self, handle: OpHandle, cx: &mut Context<'_>) -> Poll<OpOutput> {
         let slot = &self.slots[handle.idx];
         let state = slot.state.load(Ordering::Acquire);
         match state {
@@ -323,7 +763,7 @@ impl<const N: usize> OpTable<N> {
             }
             STATE_CANCELLED => {
                 slot.state.store(STATE_FREE, Ordering::Release);
-                Poll::Ready(Err(CryptoError::HardwareError))
+                Poll::Ready(OpOutput::Unit(Err(CryptoError::HardwareError)))
             }
             _ => {
                 slot.waker.register(cx.waker());
@@ -335,7 +775,7 @@ impl<const N: usize> OpTable<N> {
                     Poll::Ready(result)
                 } else if state == STATE_CANCELLED {
                     slot.state.store(STATE_FREE, Ordering::Release);
-                    Poll::Ready(Err(CryptoError::HardwareError))
+                    Poll::Ready(OpOutput::Unit(Err(CryptoError::HardwareError)))
                 } else {
                     Poll::Pending
                 }
@@ -382,7 +822,7 @@ impl<const N: usize> OpTable<N> {
     }
 
     /// Called by a worker after executing the operation.
-    pub fn complete(&self, handle: OpHandle, result: Result<(), CryptoError>) {
+    pub fn complete(&self, handle: OpHandle, result: OpOutput) {
         let slot = &self.slots[handle.idx];
         let state = slot.state.load(Ordering::Acquire);
         if state == STATE_RUNNING {

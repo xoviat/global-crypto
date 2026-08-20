@@ -10,7 +10,7 @@ use embassy_sync::waitqueue::AtomicWaker;
 use embassy_crypto_driver::{BlockingCryptoDriver, Capabilities, CryptoDriver, CryptoError};
 use embassy_futures::select::{Either, select};
 
-use crate::queue::{OpHandle, OpTable};
+use crate::queue::{OpHandle, OpOutput, OpTable};
 
 /// Maximum number of drivers supported by CryptoRunner.
 pub const MAX_DRIVERS: usize = 5;
@@ -125,7 +125,7 @@ async fn driver_worker<D: CryptoDriver, const T: usize>(
 
                         let result = match select(exec_fut.as_mut(), cancel_fut).await {
                             Either::First(result) => result,
-                            Either::Second(_) => Err(CryptoError::HardwareError),
+                            Either::Second(_) => kind.cancelled_output(),
                         };
 
                         op_table.complete(handle, result);
@@ -181,6 +181,12 @@ pub(crate) trait RunnerBackend {
         required: Capabilities,
         f: &mut dyn FnMut(&mut dyn BlockingCryptoDriver) -> Result<(), CryptoError>,
     ) -> Option<Result<(), CryptoError>>;
+
+    fn try_blocking_size(
+        &self,
+        required: Capabilities,
+        f: &mut dyn FnMut(&mut dyn BlockingCryptoDriver) -> Result<usize, CryptoError>,
+    ) -> Option<Result<usize, CryptoError>>;
 
     fn schedule_aes_gcm_128_encrypt(
         &self,
@@ -261,7 +267,158 @@ pub(crate) trait RunnerBackend {
         signature: *const [u8; 64],
     ) -> Result<OpHandle, CryptoError>;
 
-    fn poll_op(&self, handle: OpHandle, cx: &mut Context<'_>) -> Poll<Result<(), CryptoError>>;
+    fn schedule_aes_ccm_128_encrypt(
+        &self,
+        key: *const [u8; 16],
+        nonce: *const [u8],
+        aad: *const [u8],
+        plaintext: *const [u8],
+        ciphertext: *mut [u8],
+        tag: *mut [u8; 16],
+    ) -> Result<OpHandle, CryptoError>;
+
+    fn schedule_aes_ccm_128_decrypt(
+        &self,
+        key: *const [u8; 16],
+        nonce: *const [u8],
+        aad: *const [u8],
+        ciphertext: *const [u8],
+        plaintext: *mut [u8],
+        tag: *const [u8; 16],
+    ) -> Result<OpHandle, CryptoError>;
+
+    fn schedule_aes_ccm8_128_encrypt(
+        &self,
+        key: *const [u8; 16],
+        nonce: *const [u8],
+        aad: *const [u8],
+        plaintext: *const [u8],
+        ciphertext: *mut [u8],
+        tag: *mut [u8; 8],
+    ) -> Result<OpHandle, CryptoError>;
+
+    fn schedule_aes_ccm8_128_decrypt(
+        &self,
+        key: *const [u8; 16],
+        nonce: *const [u8],
+        aad: *const [u8],
+        ciphertext: *const [u8],
+        plaintext: *mut [u8],
+        tag: *const [u8; 8],
+    ) -> Result<OpHandle, CryptoError>;
+
+    fn schedule_p384_keygen(
+        &self,
+        secret_key: *mut [u8; 48],
+        public_key: *mut [u8; 96],
+    ) -> Result<OpHandle, CryptoError>;
+
+    fn schedule_p384_ecdh(
+        &self,
+        secret_key: *const [u8; 48],
+        public_key: *const [u8; 96],
+        shared_secret: *mut [u8; 48],
+    ) -> Result<OpHandle, CryptoError>;
+
+    fn schedule_p384_ecdsa_sign(
+        &self,
+        secret_key: *const [u8; 48],
+        digest: *const [u8; 48],
+        signature: *mut [u8; 96],
+    ) -> Result<OpHandle, CryptoError>;
+
+    fn schedule_p384_ecdsa_verify(
+        &self,
+        public_key: *const [u8; 96],
+        digest: *const [u8; 48],
+        signature: *const [u8; 96],
+    ) -> Result<OpHandle, CryptoError>;
+
+    fn schedule_rsa_sign_pkcs1v15_sha256(
+        &self,
+        private_key: *const [u8],
+        digest: *const [u8; 32],
+        signature: *mut [u8],
+    ) -> Result<OpHandle, CryptoError>;
+
+    fn schedule_rsa_verify_pkcs1v15_sha256(
+        &self,
+        public_key: *const [u8],
+        digest: *const [u8; 32],
+        signature: *const [u8],
+    ) -> Result<OpHandle, CryptoError>;
+
+    fn schedule_rsa_sign_pkcs1v15_sha384(
+        &self,
+        private_key: *const [u8],
+        digest: *const [u8; 48],
+        signature: *mut [u8],
+    ) -> Result<OpHandle, CryptoError>;
+
+    fn schedule_rsa_verify_pkcs1v15_sha384(
+        &self,
+        public_key: *const [u8],
+        digest: *const [u8; 48],
+        signature: *const [u8],
+    ) -> Result<OpHandle, CryptoError>;
+
+    fn schedule_rsa_sign_pkcs1v15_sha512(
+        &self,
+        private_key: *const [u8],
+        digest: *const [u8; 64],
+        signature: *mut [u8],
+    ) -> Result<OpHandle, CryptoError>;
+
+    fn schedule_rsa_verify_pkcs1v15_sha512(
+        &self,
+        public_key: *const [u8],
+        digest: *const [u8; 64],
+        signature: *const [u8],
+    ) -> Result<OpHandle, CryptoError>;
+
+    fn schedule_rsa_sign_pss_sha256(
+        &self,
+        private_key: *const [u8],
+        digest: *const [u8; 32],
+        signature: *mut [u8],
+    ) -> Result<OpHandle, CryptoError>;
+
+    fn schedule_rsa_verify_pss_sha256(
+        &self,
+        public_key: *const [u8],
+        digest: *const [u8; 32],
+        signature: *const [u8],
+    ) -> Result<OpHandle, CryptoError>;
+
+    fn schedule_rsa_sign_pss_sha384(
+        &self,
+        private_key: *const [u8],
+        digest: *const [u8; 48],
+        signature: *mut [u8],
+    ) -> Result<OpHandle, CryptoError>;
+
+    fn schedule_rsa_verify_pss_sha384(
+        &self,
+        public_key: *const [u8],
+        digest: *const [u8; 48],
+        signature: *const [u8],
+    ) -> Result<OpHandle, CryptoError>;
+
+    fn schedule_rsa_sign_pss_sha512(
+        &self,
+        private_key: *const [u8],
+        digest: *const [u8; 64],
+        signature: *mut [u8],
+    ) -> Result<OpHandle, CryptoError>;
+
+    fn schedule_rsa_verify_pss_sha512(
+        &self,
+        public_key: *const [u8],
+        digest: *const [u8; 64],
+        signature: *const [u8],
+    ) -> Result<OpHandle, CryptoError>;
+
+    fn poll_op(&self, handle: OpHandle, cx: &mut Context<'_>) -> Poll<OpOutput>;
     fn cancel_op(&self, handle: OpHandle) -> Result<(), CryptoError>;
 }
 
@@ -312,6 +469,21 @@ macro_rules! impl_crypto_runner {
                 required: Capabilities,
                 f: &mut dyn FnMut(&mut dyn BlockingCryptoDriver) -> Result<(), CryptoError>,
             ) -> Option<Result<(), CryptoError>> {
+                $({
+                    if let Ok(mut guard) = self.drivers.$idx.try_lock() {
+                        if guard.capabilities().contains(required) {
+                            return Some(f(&mut *guard));
+                        }
+                    }
+                })+
+                None
+            }
+
+            fn try_blocking_size(
+                &self,
+                required: Capabilities,
+                f: &mut dyn FnMut(&mut dyn BlockingCryptoDriver) -> Result<usize, CryptoError>,
+            ) -> Option<Result<usize, CryptoError>> {
                 $({
                     if let Ok(mut guard) = self.drivers.$idx.try_lock() {
                         if guard.capabilities().contains(required) {
@@ -451,7 +623,258 @@ macro_rules! impl_crypto_runner {
                 Ok(handle)
             }
 
-            fn poll_op(&self, handle: OpHandle, cx: &mut Context<'_>) -> Poll<Result<(), CryptoError>> {
+            fn schedule_aes_ccm_128_encrypt(
+                &self,
+                key: *const [u8; 16],
+                nonce: *const [u8],
+                aad: *const [u8],
+                plaintext: *const [u8],
+                ciphertext: *mut [u8],
+                tag: *mut [u8; 16],
+            ) -> Result<OpHandle, CryptoError> {
+                let kind = crate::queue::OpKind::AesCcm128Encrypt { key, nonce, aad, plaintext, ciphertext, tag };
+                let handle = self.op_table.alloc(kind).ok_or(CryptoError::HardwareError)?;
+                wake_capable(Capabilities::AES_128_CCM, &self.driver_slots, self.num_drivers);
+                Ok(handle)
+            }
+
+            fn schedule_aes_ccm_128_decrypt(
+                &self,
+                key: *const [u8; 16],
+                nonce: *const [u8],
+                aad: *const [u8],
+                ciphertext: *const [u8],
+                plaintext: *mut [u8],
+                tag: *const [u8; 16],
+            ) -> Result<OpHandle, CryptoError> {
+                let kind = crate::queue::OpKind::AesCcm128Decrypt { key, nonce, aad, ciphertext, plaintext, tag };
+                let handle = self.op_table.alloc(kind).ok_or(CryptoError::HardwareError)?;
+                wake_capable(Capabilities::AES_128_CCM, &self.driver_slots, self.num_drivers);
+                Ok(handle)
+            }
+
+            fn schedule_aes_ccm8_128_encrypt(
+                &self,
+                key: *const [u8; 16],
+                nonce: *const [u8],
+                aad: *const [u8],
+                plaintext: *const [u8],
+                ciphertext: *mut [u8],
+                tag: *mut [u8; 8],
+            ) -> Result<OpHandle, CryptoError> {
+                let kind = crate::queue::OpKind::AesCcm8_128Encrypt { key, nonce, aad, plaintext, ciphertext, tag };
+                let handle = self.op_table.alloc(kind).ok_or(CryptoError::HardwareError)?;
+                wake_capable(Capabilities::AES_128_CCM8, &self.driver_slots, self.num_drivers);
+                Ok(handle)
+            }
+
+            fn schedule_aes_ccm8_128_decrypt(
+                &self,
+                key: *const [u8; 16],
+                nonce: *const [u8],
+                aad: *const [u8],
+                ciphertext: *const [u8],
+                plaintext: *mut [u8],
+                tag: *const [u8; 8],
+            ) -> Result<OpHandle, CryptoError> {
+                let kind = crate::queue::OpKind::AesCcm8_128Decrypt { key, nonce, aad, ciphertext, plaintext, tag };
+                let handle = self.op_table.alloc(kind).ok_or(CryptoError::HardwareError)?;
+                wake_capable(Capabilities::AES_128_CCM8, &self.driver_slots, self.num_drivers);
+                Ok(handle)
+            }
+
+            fn schedule_p384_keygen(
+                &self,
+                secret_key: *mut [u8; 48],
+                public_key: *mut [u8; 96],
+            ) -> Result<OpHandle, CryptoError> {
+                let kind = crate::queue::OpKind::P384Keygen { secret_key, public_key };
+                let handle = self.op_table.alloc(kind).ok_or(CryptoError::HardwareError)?;
+                wake_capable(Capabilities::P384_KEYGEN, &self.driver_slots, self.num_drivers);
+                Ok(handle)
+            }
+
+            fn schedule_p384_ecdh(
+                &self,
+                secret_key: *const [u8; 48],
+                public_key: *const [u8; 96],
+                shared_secret: *mut [u8; 48],
+            ) -> Result<OpHandle, CryptoError> {
+                let kind = crate::queue::OpKind::P384Ecdh { secret_key, public_key, shared_secret };
+                let handle = self.op_table.alloc(kind).ok_or(CryptoError::HardwareError)?;
+                wake_capable(Capabilities::P384_ECDH, &self.driver_slots, self.num_drivers);
+                Ok(handle)
+            }
+
+            fn schedule_p384_ecdsa_sign(
+                &self,
+                secret_key: *const [u8; 48],
+                digest: *const [u8; 48],
+                signature: *mut [u8; 96],
+            ) -> Result<OpHandle, CryptoError> {
+                let kind = crate::queue::OpKind::P384EcdsaSign { secret_key, digest, signature };
+                let handle = self.op_table.alloc(kind).ok_or(CryptoError::HardwareError)?;
+                wake_capable(Capabilities::P384_ECDSA_SIGN, &self.driver_slots, self.num_drivers);
+                Ok(handle)
+            }
+
+            fn schedule_p384_ecdsa_verify(
+                &self,
+                public_key: *const [u8; 96],
+                digest: *const [u8; 48],
+                signature: *const [u8; 96],
+            ) -> Result<OpHandle, CryptoError> {
+                let kind = crate::queue::OpKind::P384EcdsaVerify { public_key, digest, signature };
+                let handle = self.op_table.alloc(kind).ok_or(CryptoError::HardwareError)?;
+                wake_capable(Capabilities::P384_ECDSA_VERIFY, &self.driver_slots, self.num_drivers);
+                Ok(handle)
+            }
+
+            fn schedule_rsa_sign_pkcs1v15_sha256(
+                &self,
+                private_key: *const [u8],
+                digest: *const [u8; 32],
+                signature: *mut [u8],
+            ) -> Result<OpHandle, CryptoError> {
+                let kind = crate::queue::OpKind::RsaSignPkcs1v15Sha256 { private_key, digest, signature };
+                let handle = self.op_table.alloc(kind).ok_or(CryptoError::HardwareError)?;
+                wake_capable(Capabilities::RSA_PKCS1V15_SHA256, &self.driver_slots, self.num_drivers);
+                Ok(handle)
+            }
+
+            fn schedule_rsa_verify_pkcs1v15_sha256(
+                &self,
+                public_key: *const [u8],
+                digest: *const [u8; 32],
+                signature: *const [u8],
+            ) -> Result<OpHandle, CryptoError> {
+                let kind = crate::queue::OpKind::RsaVerifyPkcs1v15Sha256 { public_key, digest, signature };
+                let handle = self.op_table.alloc(kind).ok_or(CryptoError::HardwareError)?;
+                wake_capable(Capabilities::RSA_PKCS1V15_SHA256, &self.driver_slots, self.num_drivers);
+                Ok(handle)
+            }
+
+            fn schedule_rsa_sign_pkcs1v15_sha384(
+                &self,
+                private_key: *const [u8],
+                digest: *const [u8; 48],
+                signature: *mut [u8],
+            ) -> Result<OpHandle, CryptoError> {
+                let kind = crate::queue::OpKind::RsaSignPkcs1v15Sha384 { private_key, digest, signature };
+                let handle = self.op_table.alloc(kind).ok_or(CryptoError::HardwareError)?;
+                wake_capable(Capabilities::RSA_PKCS1V15_SHA384, &self.driver_slots, self.num_drivers);
+                Ok(handle)
+            }
+
+            fn schedule_rsa_verify_pkcs1v15_sha384(
+                &self,
+                public_key: *const [u8],
+                digest: *const [u8; 48],
+                signature: *const [u8],
+            ) -> Result<OpHandle, CryptoError> {
+                let kind = crate::queue::OpKind::RsaVerifyPkcs1v15Sha384 { public_key, digest, signature };
+                let handle = self.op_table.alloc(kind).ok_or(CryptoError::HardwareError)?;
+                wake_capable(Capabilities::RSA_PKCS1V15_SHA384, &self.driver_slots, self.num_drivers);
+                Ok(handle)
+            }
+
+            fn schedule_rsa_sign_pkcs1v15_sha512(
+                &self,
+                private_key: *const [u8],
+                digest: *const [u8; 64],
+                signature: *mut [u8],
+            ) -> Result<OpHandle, CryptoError> {
+                let kind = crate::queue::OpKind::RsaSignPkcs1v15Sha512 { private_key, digest, signature };
+                let handle = self.op_table.alloc(kind).ok_or(CryptoError::HardwareError)?;
+                wake_capable(Capabilities::RSA_PKCS1V15_SHA512, &self.driver_slots, self.num_drivers);
+                Ok(handle)
+            }
+
+            fn schedule_rsa_verify_pkcs1v15_sha512(
+                &self,
+                public_key: *const [u8],
+                digest: *const [u8; 64],
+                signature: *const [u8],
+            ) -> Result<OpHandle, CryptoError> {
+                let kind = crate::queue::OpKind::RsaVerifyPkcs1v15Sha512 { public_key, digest, signature };
+                let handle = self.op_table.alloc(kind).ok_or(CryptoError::HardwareError)?;
+                wake_capable(Capabilities::RSA_PKCS1V15_SHA512, &self.driver_slots, self.num_drivers);
+                Ok(handle)
+            }
+
+            fn schedule_rsa_sign_pss_sha256(
+                &self,
+                private_key: *const [u8],
+                digest: *const [u8; 32],
+                signature: *mut [u8],
+            ) -> Result<OpHandle, CryptoError> {
+                let kind = crate::queue::OpKind::RsaSignPssSha256 { private_key, digest, signature };
+                let handle = self.op_table.alloc(kind).ok_or(CryptoError::HardwareError)?;
+                wake_capable(Capabilities::RSA_PSS_SHA256, &self.driver_slots, self.num_drivers);
+                Ok(handle)
+            }
+
+            fn schedule_rsa_verify_pss_sha256(
+                &self,
+                public_key: *const [u8],
+                digest: *const [u8; 32],
+                signature: *const [u8],
+            ) -> Result<OpHandle, CryptoError> {
+                let kind = crate::queue::OpKind::RsaVerifyPssSha256 { public_key, digest, signature };
+                let handle = self.op_table.alloc(kind).ok_or(CryptoError::HardwareError)?;
+                wake_capable(Capabilities::RSA_PSS_SHA256, &self.driver_slots, self.num_drivers);
+                Ok(handle)
+            }
+
+            fn schedule_rsa_sign_pss_sha384(
+                &self,
+                private_key: *const [u8],
+                digest: *const [u8; 48],
+                signature: *mut [u8],
+            ) -> Result<OpHandle, CryptoError> {
+                let kind = crate::queue::OpKind::RsaSignPssSha384 { private_key, digest, signature };
+                let handle = self.op_table.alloc(kind).ok_or(CryptoError::HardwareError)?;
+                wake_capable(Capabilities::RSA_PSS_SHA384, &self.driver_slots, self.num_drivers);
+                Ok(handle)
+            }
+
+            fn schedule_rsa_verify_pss_sha384(
+                &self,
+                public_key: *const [u8],
+                digest: *const [u8; 48],
+                signature: *const [u8],
+            ) -> Result<OpHandle, CryptoError> {
+                let kind = crate::queue::OpKind::RsaVerifyPssSha384 { public_key, digest, signature };
+                let handle = self.op_table.alloc(kind).ok_or(CryptoError::HardwareError)?;
+                wake_capable(Capabilities::RSA_PSS_SHA384, &self.driver_slots, self.num_drivers);
+                Ok(handle)
+            }
+
+            fn schedule_rsa_sign_pss_sha512(
+                &self,
+                private_key: *const [u8],
+                digest: *const [u8; 64],
+                signature: *mut [u8],
+            ) -> Result<OpHandle, CryptoError> {
+                let kind = crate::queue::OpKind::RsaSignPssSha512 { private_key, digest, signature };
+                let handle = self.op_table.alloc(kind).ok_or(CryptoError::HardwareError)?;
+                wake_capable(Capabilities::RSA_PSS_SHA512, &self.driver_slots, self.num_drivers);
+                Ok(handle)
+            }
+
+            fn schedule_rsa_verify_pss_sha512(
+                &self,
+                public_key: *const [u8],
+                digest: *const [u8; 64],
+                signature: *const [u8],
+            ) -> Result<OpHandle, CryptoError> {
+                let kind = crate::queue::OpKind::RsaVerifyPssSha512 { public_key, digest, signature };
+                let handle = self.op_table.alloc(kind).ok_or(CryptoError::HardwareError)?;
+                wake_capable(Capabilities::RSA_PSS_SHA512, &self.driver_slots, self.num_drivers);
+                Ok(handle)
+            }
+
+            fn poll_op(&self, handle: OpHandle, cx: &mut Context<'_>) -> Poll<OpOutput> {
                 self.op_table.poll(handle, cx)
             }
 

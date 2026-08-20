@@ -5,17 +5,9 @@ use core::task::{Context, Poll};
 use crate::runner::RunnerBackend;
 use embassy_crypto_driver::{Capabilities, CryptoError};
 
-/// Type-erased crypto server.
-///
-/// Created via `CryptoRunner::server()`. All methods are object-safe and
-/// require no heap allocation.
 pub struct CryptoServer<'a> {
     pub(crate) backend: &'a dyn RunnerBackend,
 }
-
-// ===================================================================
-// Blocking fast-path methods
-// ===================================================================
 
 impl CryptoServer<'_> {
     pub fn rng_fill(&self, dest: &mut [u8]) -> Result<(), CryptoError> {
@@ -60,6 +52,277 @@ impl CryptoServer<'_> {
             })
             .unwrap_or(Err(CryptoError::HardwareError))
     }
+
+    pub fn aes_ccm_128_encrypt(
+        &self,
+        key: &[u8; 16],
+        nonce: &[u8],
+        aad: &[u8],
+        plaintext: &[u8],
+        ciphertext: &mut [u8],
+        tag: &mut [u8; 16],
+    ) -> Result<(), CryptoError> {
+        self.backend
+            .try_blocking(Capabilities::AES_128_CCM, &mut |drv| {
+                drv.aes_ccm_128_encrypt(key, nonce, aad, plaintext, ciphertext, tag)
+            })
+            .unwrap_or(Err(CryptoError::HardwareError))
+    }
+
+    pub fn aes_ccm_128_decrypt(
+        &self,
+        key: &[u8; 16],
+        nonce: &[u8],
+        aad: &[u8],
+        ciphertext: &[u8],
+        plaintext: &mut [u8],
+        tag: &[u8; 16],
+    ) -> Result<(), CryptoError> {
+        self.backend
+            .try_blocking(Capabilities::AES_128_CCM, &mut |drv| {
+                drv.aes_ccm_128_decrypt(key, nonce, aad, ciphertext, plaintext, tag)
+            })
+            .unwrap_or(Err(CryptoError::HardwareError))
+    }
+
+    pub fn aes_ccm8_128_encrypt(
+        &self,
+        key: &[u8; 16],
+        nonce: &[u8],
+        aad: &[u8],
+        plaintext: &[u8],
+        ciphertext: &mut [u8],
+        tag: &mut [u8; 8],
+    ) -> Result<(), CryptoError> {
+        self.backend
+            .try_blocking(Capabilities::AES_128_CCM8, &mut |drv| {
+                drv.aes_ccm8_128_encrypt(key, nonce, aad, plaintext, ciphertext, tag)
+            })
+            .unwrap_or(Err(CryptoError::HardwareError))
+    }
+
+    pub fn aes_ccm8_128_decrypt(
+        &self,
+        key: &[u8; 16],
+        nonce: &[u8],
+        aad: &[u8],
+        ciphertext: &[u8],
+        plaintext: &mut [u8],
+        tag: &[u8; 8],
+    ) -> Result<(), CryptoError> {
+        self.backend
+            .try_blocking(Capabilities::AES_128_CCM8, &mut |drv| {
+                drv.aes_ccm8_128_decrypt(key, nonce, aad, ciphertext, plaintext, tag)
+            })
+            .unwrap_or(Err(CryptoError::HardwareError))
+    }
+
+    pub fn p384_keygen(
+        &self,
+        secret_key: &mut [u8; 48],
+        public_key: &mut [u8; 96],
+    ) -> Result<(), CryptoError> {
+        self.backend
+            .try_blocking(Capabilities::P384_KEYGEN, &mut |drv| {
+                drv.p384_keygen(secret_key, public_key)
+            })
+            .unwrap_or(Err(CryptoError::HardwareError))
+    }
+
+    pub fn p384_ecdh(
+        &self,
+        secret_key: &[u8; 48],
+        public_key: &[u8; 96],
+        shared_secret: &mut [u8; 48],
+    ) -> Result<(), CryptoError> {
+        self.backend
+            .try_blocking(Capabilities::P384_ECDH, &mut |drv| {
+                drv.p384_ecdh(secret_key, public_key, shared_secret)
+            })
+            .unwrap_or(Err(CryptoError::HardwareError))
+    }
+
+    pub fn p384_ecdsa_sign(
+        &self,
+        secret_key: &[u8; 48],
+        digest: &[u8; 48],
+        signature: &mut [u8; 96],
+    ) -> Result<(), CryptoError> {
+        self.backend
+            .try_blocking(Capabilities::P384_ECDSA_SIGN, &mut |drv| {
+                drv.p384_ecdsa_sign(secret_key, digest, signature)
+            })
+            .unwrap_or(Err(CryptoError::HardwareError))
+    }
+
+    pub fn p384_ecdsa_verify(
+        &self,
+        public_key: &[u8; 96],
+        digest: &[u8; 48],
+        signature: &[u8; 96],
+    ) -> Result<(), CryptoError> {
+        self.backend
+            .try_blocking(Capabilities::P384_ECDSA_VERIFY, &mut |drv| {
+                drv.p384_ecdsa_verify(public_key, digest, signature)
+            })
+            .unwrap_or(Err(CryptoError::HardwareError))
+    }
+
+    pub fn rsa_sign_pkcs1v15_sha256(
+        &self,
+        private_key: &[u8],
+        digest: &[u8; 32],
+        signature: &mut [u8],
+    ) -> Result<usize, CryptoError> {
+        self.backend
+            .try_blocking_size(Capabilities::RSA_PKCS1V15_SHA256, &mut |drv| {
+                drv.rsa_sign_pkcs1v15_sha256(private_key, digest, signature)
+            })
+            .unwrap_or(Err(CryptoError::HardwareError))
+    }
+
+    pub fn rsa_verify_pkcs1v15_sha256(
+        &self,
+        public_key: &[u8],
+        digest: &[u8; 32],
+        signature: &[u8],
+    ) -> Result<(), CryptoError> {
+        self.backend
+            .try_blocking(Capabilities::RSA_PKCS1V15_SHA256, &mut |drv| {
+                drv.rsa_verify_pkcs1v15_sha256(public_key, digest, signature)
+            })
+            .unwrap_or(Err(CryptoError::HardwareError))
+    }
+
+    pub fn rsa_sign_pkcs1v15_sha384(
+        &self,
+        private_key: &[u8],
+        digest: &[u8; 48],
+        signature: &mut [u8],
+    ) -> Result<usize, CryptoError> {
+        self.backend
+            .try_blocking_size(Capabilities::RSA_PKCS1V15_SHA384, &mut |drv| {
+                drv.rsa_sign_pkcs1v15_sha384(private_key, digest, signature)
+            })
+            .unwrap_or(Err(CryptoError::HardwareError))
+    }
+
+    pub fn rsa_verify_pkcs1v15_sha384(
+        &self,
+        public_key: &[u8],
+        digest: &[u8; 48],
+        signature: &[u8],
+    ) -> Result<(), CryptoError> {
+        self.backend
+            .try_blocking(Capabilities::RSA_PKCS1V15_SHA384, &mut |drv| {
+                drv.rsa_verify_pkcs1v15_sha384(public_key, digest, signature)
+            })
+            .unwrap_or(Err(CryptoError::HardwareError))
+    }
+
+    pub fn rsa_sign_pkcs1v15_sha512(
+        &self,
+        private_key: &[u8],
+        digest: &[u8; 64],
+        signature: &mut [u8],
+    ) -> Result<usize, CryptoError> {
+        self.backend
+            .try_blocking_size(Capabilities::RSA_PKCS1V15_SHA512, &mut |drv| {
+                drv.rsa_sign_pkcs1v15_sha512(private_key, digest, signature)
+            })
+            .unwrap_or(Err(CryptoError::HardwareError))
+    }
+
+    pub fn rsa_verify_pkcs1v15_sha512(
+        &self,
+        public_key: &[u8],
+        digest: &[u8; 64],
+        signature: &[u8],
+    ) -> Result<(), CryptoError> {
+        self.backend
+            .try_blocking(Capabilities::RSA_PKCS1V15_SHA512, &mut |drv| {
+                drv.rsa_verify_pkcs1v15_sha512(public_key, digest, signature)
+            })
+            .unwrap_or(Err(CryptoError::HardwareError))
+    }
+
+    pub fn rsa_sign_pss_sha256(
+        &self,
+        private_key: &[u8],
+        digest: &[u8; 32],
+        signature: &mut [u8],
+    ) -> Result<usize, CryptoError> {
+        self.backend
+            .try_blocking_size(Capabilities::RSA_PSS_SHA256, &mut |drv| {
+                drv.rsa_sign_pss_sha256(private_key, digest, signature)
+            })
+            .unwrap_or(Err(CryptoError::HardwareError))
+    }
+
+    pub fn rsa_verify_pss_sha256(
+        &self,
+        public_key: &[u8],
+        digest: &[u8; 32],
+        signature: &[u8],
+    ) -> Result<(), CryptoError> {
+        self.backend
+            .try_blocking(Capabilities::RSA_PSS_SHA256, &mut |drv| {
+                drv.rsa_verify_pss_sha256(public_key, digest, signature)
+            })
+            .unwrap_or(Err(CryptoError::HardwareError))
+    }
+
+    pub fn rsa_sign_pss_sha384(
+        &self,
+        private_key: &[u8],
+        digest: &[u8; 48],
+        signature: &mut [u8],
+    ) -> Result<usize, CryptoError> {
+        self.backend
+            .try_blocking_size(Capabilities::RSA_PSS_SHA384, &mut |drv| {
+                drv.rsa_sign_pss_sha384(private_key, digest, signature)
+            })
+            .unwrap_or(Err(CryptoError::HardwareError))
+    }
+
+    pub fn rsa_verify_pss_sha384(
+        &self,
+        public_key: &[u8],
+        digest: &[u8; 48],
+        signature: &[u8],
+    ) -> Result<(), CryptoError> {
+        self.backend
+            .try_blocking(Capabilities::RSA_PSS_SHA384, &mut |drv| {
+                drv.rsa_verify_pss_sha384(public_key, digest, signature)
+            })
+            .unwrap_or(Err(CryptoError::HardwareError))
+    }
+
+    pub fn rsa_sign_pss_sha512(
+        &self,
+        private_key: &[u8],
+        digest: &[u8; 64],
+        signature: &mut [u8],
+    ) -> Result<usize, CryptoError> {
+        self.backend
+            .try_blocking_size(Capabilities::RSA_PSS_SHA512, &mut |drv| {
+                drv.rsa_sign_pss_sha512(private_key, digest, signature)
+            })
+            .unwrap_or(Err(CryptoError::HardwareError))
+    }
+
+    pub fn rsa_verify_pss_sha512(
+        &self,
+        public_key: &[u8],
+        digest: &[u8; 64],
+        signature: &[u8],
+    ) -> Result<(), CryptoError> {
+        self.backend
+            .try_blocking(Capabilities::RSA_PSS_SHA512, &mut |drv| {
+                drv.rsa_verify_pss_sha512(public_key, digest, signature)
+            })
+            .unwrap_or(Err(CryptoError::HardwareError))
+    }
 }
 
 // ===================================================================
@@ -79,7 +342,6 @@ pub struct AesGcm128EncryptFuture<'a> {
 
 impl Future for AesGcm128EncryptFuture<'_> {
     type Output = Result<(), CryptoError>;
-
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = &mut *self;
         match this.handle {
@@ -95,7 +357,7 @@ impl Future for AesGcm128EncryptFuture<'_> {
                 this.handle = Some(handle);
                 Poll::Pending
             }
-            Some(h) => this.backend.poll_op(h, cx),
+            Some(h) => this.backend.poll_op(h, cx).map(|o| o.into_unit()),
         }
     }
 }
@@ -121,7 +383,6 @@ pub struct AesGcm128DecryptFuture<'a> {
 
 impl Future for AesGcm128DecryptFuture<'_> {
     type Output = Result<(), CryptoError>;
-
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = &mut *self;
         match this.handle {
@@ -137,7 +398,7 @@ impl Future for AesGcm128DecryptFuture<'_> {
                 this.handle = Some(handle);
                 Poll::Pending
             }
-            Some(h) => this.backend.poll_op(h, cx),
+            Some(h) => this.backend.poll_op(h, cx).map(|o| o.into_unit()),
         }
     }
 }
@@ -171,7 +432,6 @@ impl CryptoServer<'_> {
             handle: None,
         }
     }
-
     pub fn aes_gcm_128_decrypt<'a>(
         &'a self,
         key: &'a [u8; 16],
@@ -211,7 +471,6 @@ pub struct AesGcm256EncryptFuture<'a> {
 
 impl Future for AesGcm256EncryptFuture<'_> {
     type Output = Result<(), CryptoError>;
-
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = &mut *self;
         match this.handle {
@@ -227,7 +486,7 @@ impl Future for AesGcm256EncryptFuture<'_> {
                 this.handle = Some(handle);
                 Poll::Pending
             }
-            Some(h) => this.backend.poll_op(h, cx),
+            Some(h) => this.backend.poll_op(h, cx).map(|o| o.into_unit()),
         }
     }
 }
@@ -253,7 +512,6 @@ pub struct AesGcm256DecryptFuture<'a> {
 
 impl Future for AesGcm256DecryptFuture<'_> {
     type Output = Result<(), CryptoError>;
-
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = &mut *self;
         match this.handle {
@@ -269,7 +527,7 @@ impl Future for AesGcm256DecryptFuture<'_> {
                 this.handle = Some(handle);
                 Poll::Pending
             }
-            Some(h) => this.backend.poll_op(h, cx),
+            Some(h) => this.backend.poll_op(h, cx).map(|o| o.into_unit()),
         }
     }
 }
@@ -303,7 +561,6 @@ impl CryptoServer<'_> {
             handle: None,
         }
     }
-
     pub fn aes_gcm_256_decrypt<'a>(
         &'a self,
         key: &'a [u8; 32],
@@ -314,6 +571,264 @@ impl CryptoServer<'_> {
         tag: &'a [u8; 16],
     ) -> AesGcm256DecryptFuture<'a> {
         AesGcm256DecryptFuture {
+            backend: self.backend,
+            key,
+            nonce,
+            aad,
+            ciphertext,
+            plaintext,
+            tag,
+            handle: None,
+        }
+    }
+}
+
+// ===================================================================
+// AES-128-CCM
+// ===================================================================
+
+pub struct AesCcm128EncryptFuture<'a> {
+    backend: &'a dyn RunnerBackend,
+    key: &'a [u8; 16],
+    nonce: &'a [u8],
+    aad: &'a [u8],
+    plaintext: &'a [u8],
+    ciphertext: &'a mut [u8],
+    tag: &'a mut [u8; 16],
+    handle: Option<crate::queue::OpHandle>,
+}
+
+impl Future for AesCcm128EncryptFuture<'_> {
+    type Output = Result<(), CryptoError>;
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = &mut *self;
+        match this.handle {
+            None => {
+                let handle = this.backend.schedule_aes_ccm_128_encrypt(
+                    this.key,
+                    this.nonce,
+                    this.aad,
+                    this.plaintext,
+                    this.ciphertext,
+                    this.tag,
+                )?;
+                this.handle = Some(handle);
+                Poll::Pending
+            }
+            Some(h) => this.backend.poll_op(h, cx).map(|o| o.into_unit()),
+        }
+    }
+}
+
+impl Drop for AesCcm128EncryptFuture<'_> {
+    fn drop(&mut self) {
+        if let Some(h) = self.handle {
+            let _ = self.backend.cancel_op(h);
+        }
+    }
+}
+
+pub struct AesCcm128DecryptFuture<'a> {
+    backend: &'a dyn RunnerBackend,
+    key: &'a [u8; 16],
+    nonce: &'a [u8],
+    aad: &'a [u8],
+    ciphertext: &'a [u8],
+    plaintext: &'a mut [u8],
+    tag: &'a [u8; 16],
+    handle: Option<crate::queue::OpHandle>,
+}
+
+impl Future for AesCcm128DecryptFuture<'_> {
+    type Output = Result<(), CryptoError>;
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = &mut *self;
+        match this.handle {
+            None => {
+                let handle = this.backend.schedule_aes_ccm_128_decrypt(
+                    this.key,
+                    this.nonce,
+                    this.aad,
+                    this.ciphertext,
+                    this.plaintext,
+                    this.tag,
+                )?;
+                this.handle = Some(handle);
+                Poll::Pending
+            }
+            Some(h) => this.backend.poll_op(h, cx).map(|o| o.into_unit()),
+        }
+    }
+}
+
+impl Drop for AesCcm128DecryptFuture<'_> {
+    fn drop(&mut self) {
+        if let Some(h) = self.handle {
+            let _ = self.backend.cancel_op(h);
+        }
+    }
+}
+
+impl CryptoServer<'_> {
+    pub fn aes_ccm_128_encrypt<'a>(
+        &'a self,
+        key: &'a [u8; 16],
+        nonce: &'a [u8],
+        aad: &'a [u8],
+        plaintext: &'a [u8],
+        ciphertext: &'a mut [u8],
+        tag: &'a mut [u8; 16],
+    ) -> AesCcm128EncryptFuture<'a> {
+        AesCcm128EncryptFuture {
+            backend: self.backend,
+            key,
+            nonce,
+            aad,
+            plaintext,
+            ciphertext,
+            tag,
+            handle: None,
+        }
+    }
+    pub fn aes_ccm_128_decrypt<'a>(
+        &'a self,
+        key: &'a [u8; 16],
+        nonce: &'a [u8],
+        aad: &'a [u8],
+        ciphertext: &'a [u8],
+        plaintext: &'a mut [u8],
+        tag: &'a [u8; 16],
+    ) -> AesCcm128DecryptFuture<'a> {
+        AesCcm128DecryptFuture {
+            backend: self.backend,
+            key,
+            nonce,
+            aad,
+            ciphertext,
+            plaintext,
+            tag,
+            handle: None,
+        }
+    }
+}
+
+// ===================================================================
+// AES-128-CCM8
+// ===================================================================
+
+pub struct AesCcm8_128EncryptFuture<'a> {
+    backend: &'a dyn RunnerBackend,
+    key: &'a [u8; 16],
+    nonce: &'a [u8],
+    aad: &'a [u8],
+    plaintext: &'a [u8],
+    ciphertext: &'a mut [u8],
+    tag: &'a mut [u8; 8],
+    handle: Option<crate::queue::OpHandle>,
+}
+
+impl Future for AesCcm8_128EncryptFuture<'_> {
+    type Output = Result<(), CryptoError>;
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = &mut *self;
+        match this.handle {
+            None => {
+                let handle = this.backend.schedule_aes_ccm8_128_encrypt(
+                    this.key,
+                    this.nonce,
+                    this.aad,
+                    this.plaintext,
+                    this.ciphertext,
+                    this.tag,
+                )?;
+                this.handle = Some(handle);
+                Poll::Pending
+            }
+            Some(h) => this.backend.poll_op(h, cx).map(|o| o.into_unit()),
+        }
+    }
+}
+
+impl Drop for AesCcm8_128EncryptFuture<'_> {
+    fn drop(&mut self) {
+        if let Some(h) = self.handle {
+            let _ = self.backend.cancel_op(h);
+        }
+    }
+}
+
+pub struct AesCcm8_128DecryptFuture<'a> {
+    backend: &'a dyn RunnerBackend,
+    key: &'a [u8; 16],
+    nonce: &'a [u8],
+    aad: &'a [u8],
+    ciphertext: &'a [u8],
+    plaintext: &'a mut [u8],
+    tag: &'a [u8; 8],
+    handle: Option<crate::queue::OpHandle>,
+}
+
+impl Future for AesCcm8_128DecryptFuture<'_> {
+    type Output = Result<(), CryptoError>;
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = &mut *self;
+        match this.handle {
+            None => {
+                let handle = this.backend.schedule_aes_ccm8_128_decrypt(
+                    this.key,
+                    this.nonce,
+                    this.aad,
+                    this.ciphertext,
+                    this.plaintext,
+                    this.tag,
+                )?;
+                this.handle = Some(handle);
+                Poll::Pending
+            }
+            Some(h) => this.backend.poll_op(h, cx).map(|o| o.into_unit()),
+        }
+    }
+}
+
+impl Drop for AesCcm8_128DecryptFuture<'_> {
+    fn drop(&mut self) {
+        if let Some(h) = self.handle {
+            let _ = self.backend.cancel_op(h);
+        }
+    }
+}
+
+impl CryptoServer<'_> {
+    pub fn aes_ccm8_128_encrypt<'a>(
+        &'a self,
+        key: &'a [u8; 16],
+        nonce: &'a [u8],
+        aad: &'a [u8],
+        plaintext: &'a [u8],
+        ciphertext: &'a mut [u8],
+        tag: &'a mut [u8; 8],
+    ) -> AesCcm8_128EncryptFuture<'a> {
+        AesCcm8_128EncryptFuture {
+            backend: self.backend,
+            key,
+            nonce,
+            aad,
+            plaintext,
+            ciphertext,
+            tag,
+            handle: None,
+        }
+    }
+    pub fn aes_ccm8_128_decrypt<'a>(
+        &'a self,
+        key: &'a [u8; 16],
+        nonce: &'a [u8],
+        aad: &'a [u8],
+        ciphertext: &'a [u8],
+        plaintext: &'a mut [u8],
+        tag: &'a [u8; 8],
+    ) -> AesCcm8_128DecryptFuture<'a> {
+        AesCcm8_128DecryptFuture {
             backend: self.backend,
             key,
             nonce,
@@ -339,7 +854,6 @@ pub struct Sha256Future<'a> {
 
 impl Future for Sha256Future<'_> {
     type Output = Result<(), CryptoError>;
-
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = &mut *self;
         match this.handle {
@@ -348,7 +862,7 @@ impl Future for Sha256Future<'_> {
                 this.handle = Some(handle);
                 Poll::Pending
             }
-            Some(h) => this.backend.poll_op(h, cx),
+            Some(h) => this.backend.poll_op(h, cx).map(|o| o.into_unit()),
         }
     }
 }
@@ -370,7 +884,6 @@ pub struct Sha384Future<'a> {
 
 impl Future for Sha384Future<'_> {
     type Output = Result<(), CryptoError>;
-
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = &mut *self;
         match this.handle {
@@ -379,7 +892,7 @@ impl Future for Sha384Future<'_> {
                 this.handle = Some(handle);
                 Poll::Pending
             }
-            Some(h) => this.backend.poll_op(h, cx),
+            Some(h) => this.backend.poll_op(h, cx).map(|o| o.into_unit()),
         }
     }
 }
@@ -401,7 +914,6 @@ impl CryptoServer<'_> {
             handle: None,
         }
     }
-
     pub fn sha_384<'a>(&'a self, data: &'a [u8], out: &'a mut [u8; 48]) -> Sha384Future<'a> {
         Sha384Future {
             backend: self.backend,
@@ -425,7 +937,6 @@ pub struct P256KeygenFuture<'a> {
 
 impl Future for P256KeygenFuture<'_> {
     type Output = Result<(), CryptoError>;
-
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = &mut *self;
         match this.handle {
@@ -436,7 +947,7 @@ impl Future for P256KeygenFuture<'_> {
                 this.handle = Some(handle);
                 Poll::Pending
             }
-            Some(h) => this.backend.poll_op(h, cx),
+            Some(h) => this.backend.poll_op(h, cx).map(|o| o.into_unit()),
         }
     }
 }
@@ -459,7 +970,6 @@ pub struct P256EcdhFuture<'a> {
 
 impl Future for P256EcdhFuture<'_> {
     type Output = Result<(), CryptoError>;
-
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = &mut *self;
         match this.handle {
@@ -472,7 +982,7 @@ impl Future for P256EcdhFuture<'_> {
                 this.handle = Some(handle);
                 Poll::Pending
             }
-            Some(h) => this.backend.poll_op(h, cx),
+            Some(h) => this.backend.poll_op(h, cx).map(|o| o.into_unit()),
         }
     }
 }
@@ -495,7 +1005,6 @@ pub struct P256EcdsaSignFuture<'a> {
 
 impl Future for P256EcdsaSignFuture<'_> {
     type Output = Result<(), CryptoError>;
-
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = &mut *self;
         match this.handle {
@@ -508,7 +1017,7 @@ impl Future for P256EcdsaSignFuture<'_> {
                 this.handle = Some(handle);
                 Poll::Pending
             }
-            Some(h) => this.backend.poll_op(h, cx),
+            Some(h) => this.backend.poll_op(h, cx).map(|o| o.into_unit()),
         }
     }
 }
@@ -531,7 +1040,6 @@ pub struct P256EcdsaVerifyFuture<'a> {
 
 impl Future for P256EcdsaVerifyFuture<'_> {
     type Output = Result<(), CryptoError>;
-
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = &mut *self;
         match this.handle {
@@ -544,7 +1052,7 @@ impl Future for P256EcdsaVerifyFuture<'_> {
                 this.handle = Some(handle);
                 Poll::Pending
             }
-            Some(h) => this.backend.poll_op(h, cx),
+            Some(h) => this.backend.poll_op(h, cx).map(|o| o.into_unit()),
         }
     }
 }
@@ -570,7 +1078,6 @@ impl CryptoServer<'_> {
             handle: None,
         }
     }
-
     pub fn p256_ecdh<'a>(
         &'a self,
         secret_key: &'a [u8; 32],
@@ -585,7 +1092,6 @@ impl CryptoServer<'_> {
             handle: None,
         }
     }
-
     pub fn p256_ecdsa_sign<'a>(
         &'a self,
         secret_key: &'a [u8; 32],
@@ -600,7 +1106,6 @@ impl CryptoServer<'_> {
             handle: None,
         }
     }
-
     pub fn p256_ecdsa_verify<'a>(
         &'a self,
         public_key: &'a [u8; 64],
@@ -608,6 +1113,834 @@ impl CryptoServer<'_> {
         signature: &'a [u8; 64],
     ) -> P256EcdsaVerifyFuture<'a> {
         P256EcdsaVerifyFuture {
+            backend: self.backend,
+            public_key,
+            digest,
+            signature,
+            handle: None,
+        }
+    }
+}
+
+// ===================================================================
+// P-384
+// ===================================================================
+
+pub struct P384KeygenFuture<'a> {
+    backend: &'a dyn RunnerBackend,
+    secret_key: &'a mut [u8; 48],
+    public_key: &'a mut [u8; 96],
+    handle: Option<crate::queue::OpHandle>,
+}
+
+impl Future for P384KeygenFuture<'_> {
+    type Output = Result<(), CryptoError>;
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = &mut *self;
+        match this.handle {
+            None => {
+                let handle = this
+                    .backend
+                    .schedule_p384_keygen(this.secret_key, this.public_key)?;
+                this.handle = Some(handle);
+                Poll::Pending
+            }
+            Some(h) => this.backend.poll_op(h, cx).map(|o| o.into_unit()),
+        }
+    }
+}
+
+impl Drop for P384KeygenFuture<'_> {
+    fn drop(&mut self) {
+        if let Some(h) = self.handle {
+            let _ = self.backend.cancel_op(h);
+        }
+    }
+}
+
+pub struct P384EcdhFuture<'a> {
+    backend: &'a dyn RunnerBackend,
+    secret_key: &'a [u8; 48],
+    public_key: &'a [u8; 96],
+    shared_secret: &'a mut [u8; 48],
+    handle: Option<crate::queue::OpHandle>,
+}
+
+impl Future for P384EcdhFuture<'_> {
+    type Output = Result<(), CryptoError>;
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = &mut *self;
+        match this.handle {
+            None => {
+                let handle = this.backend.schedule_p384_ecdh(
+                    this.secret_key,
+                    this.public_key,
+                    this.shared_secret,
+                )?;
+                this.handle = Some(handle);
+                Poll::Pending
+            }
+            Some(h) => this.backend.poll_op(h, cx).map(|o| o.into_unit()),
+        }
+    }
+}
+
+impl Drop for P384EcdhFuture<'_> {
+    fn drop(&mut self) {
+        if let Some(h) = self.handle {
+            let _ = self.backend.cancel_op(h);
+        }
+    }
+}
+
+pub struct P384EcdsaSignFuture<'a> {
+    backend: &'a dyn RunnerBackend,
+    secret_key: &'a [u8; 48],
+    digest: &'a [u8; 48],
+    signature: &'a mut [u8; 96],
+    handle: Option<crate::queue::OpHandle>,
+}
+
+impl Future for P384EcdsaSignFuture<'_> {
+    type Output = Result<(), CryptoError>;
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = &mut *self;
+        match this.handle {
+            None => {
+                let handle = this.backend.schedule_p384_ecdsa_sign(
+                    this.secret_key,
+                    this.digest,
+                    this.signature,
+                )?;
+                this.handle = Some(handle);
+                Poll::Pending
+            }
+            Some(h) => this.backend.poll_op(h, cx).map(|o| o.into_unit()),
+        }
+    }
+}
+
+impl Drop for P384EcdsaSignFuture<'_> {
+    fn drop(&mut self) {
+        if let Some(h) = self.handle {
+            let _ = self.backend.cancel_op(h);
+        }
+    }
+}
+
+pub struct P384EcdsaVerifyFuture<'a> {
+    backend: &'a dyn RunnerBackend,
+    public_key: &'a [u8; 96],
+    digest: &'a [u8; 48],
+    signature: &'a [u8; 96],
+    handle: Option<crate::queue::OpHandle>,
+}
+
+impl Future for P384EcdsaVerifyFuture<'_> {
+    type Output = Result<(), CryptoError>;
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = &mut *self;
+        match this.handle {
+            None => {
+                let handle = this.backend.schedule_p384_ecdsa_verify(
+                    this.public_key,
+                    this.digest,
+                    this.signature,
+                )?;
+                this.handle = Some(handle);
+                Poll::Pending
+            }
+            Some(h) => this.backend.poll_op(h, cx).map(|o| o.into_unit()),
+        }
+    }
+}
+
+impl Drop for P384EcdsaVerifyFuture<'_> {
+    fn drop(&mut self) {
+        if let Some(h) = self.handle {
+            let _ = self.backend.cancel_op(h);
+        }
+    }
+}
+
+impl CryptoServer<'_> {
+    pub fn p384_keygen<'a>(
+        &'a self,
+        secret_key: &'a mut [u8; 48],
+        public_key: &'a mut [u8; 96],
+    ) -> P384KeygenFuture<'a> {
+        P384KeygenFuture {
+            backend: self.backend,
+            secret_key,
+            public_key,
+            handle: None,
+        }
+    }
+    pub fn p384_ecdh<'a>(
+        &'a self,
+        secret_key: &'a [u8; 48],
+        public_key: &'a [u8; 96],
+        shared_secret: &'a mut [u8; 48],
+    ) -> P384EcdhFuture<'a> {
+        P384EcdhFuture {
+            backend: self.backend,
+            secret_key,
+            public_key,
+            shared_secret,
+            handle: None,
+        }
+    }
+    pub fn p384_ecdsa_sign<'a>(
+        &'a self,
+        secret_key: &'a [u8; 48],
+        digest: &'a [u8; 48],
+        signature: &'a mut [u8; 96],
+    ) -> P384EcdsaSignFuture<'a> {
+        P384EcdsaSignFuture {
+            backend: self.backend,
+            secret_key,
+            digest,
+            signature,
+            handle: None,
+        }
+    }
+    pub fn p384_ecdsa_verify<'a>(
+        &'a self,
+        public_key: &'a [u8; 96],
+        digest: &'a [u8; 48],
+        signature: &'a [u8; 96],
+    ) -> P384EcdsaVerifyFuture<'a> {
+        P384EcdsaVerifyFuture {
+            backend: self.backend,
+            public_key,
+            digest,
+            signature,
+            handle: None,
+        }
+    }
+}
+
+// ===================================================================
+// RSA PKCS#1 v1.5 + SHA-256
+// ===================================================================
+
+pub struct RsaSignPkcs1v15Sha256Future<'a> {
+    backend: &'a dyn RunnerBackend,
+    private_key: &'a [u8],
+    digest: &'a [u8; 32],
+    signature: &'a mut [u8],
+    handle: Option<crate::queue::OpHandle>,
+}
+
+impl Future for RsaSignPkcs1v15Sha256Future<'_> {
+    type Output = Result<usize, CryptoError>;
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = &mut *self;
+        match this.handle {
+            None => {
+                let handle = this.backend.schedule_rsa_sign_pkcs1v15_sha256(
+                    this.private_key,
+                    this.digest,
+                    this.signature,
+                )?;
+                this.handle = Some(handle);
+                Poll::Pending
+            }
+            Some(h) => this.backend.poll_op(h, cx).map(|o| o.into_size()),
+        }
+    }
+}
+
+impl Drop for RsaSignPkcs1v15Sha256Future<'_> {
+    fn drop(&mut self) {
+        if let Some(h) = self.handle {
+            let _ = self.backend.cancel_op(h);
+        }
+    }
+}
+
+pub struct RsaVerifyPkcs1v15Sha256Future<'a> {
+    backend: &'a dyn RunnerBackend,
+    public_key: &'a [u8],
+    digest: &'a [u8; 32],
+    signature: &'a [u8],
+    handle: Option<crate::queue::OpHandle>,
+}
+
+impl Future for RsaVerifyPkcs1v15Sha256Future<'_> {
+    type Output = Result<(), CryptoError>;
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = &mut *self;
+        match this.handle {
+            None => {
+                let handle = this.backend.schedule_rsa_verify_pkcs1v15_sha256(
+                    this.public_key,
+                    this.digest,
+                    this.signature,
+                )?;
+                this.handle = Some(handle);
+                Poll::Pending
+            }
+            Some(h) => this.backend.poll_op(h, cx).map(|o| o.into_unit()),
+        }
+    }
+}
+
+impl Drop for RsaVerifyPkcs1v15Sha256Future<'_> {
+    fn drop(&mut self) {
+        if let Some(h) = self.handle {
+            let _ = self.backend.cancel_op(h);
+        }
+    }
+}
+
+impl CryptoServer<'_> {
+    pub fn rsa_sign_pkcs1v15_sha256<'a>(
+        &'a self,
+        private_key: &'a [u8],
+        digest: &'a [u8; 32],
+        signature: &'a mut [u8],
+    ) -> RsaSignPkcs1v15Sha256Future<'a> {
+        RsaSignPkcs1v15Sha256Future {
+            backend: self.backend,
+            private_key,
+            digest,
+            signature,
+            handle: None,
+        }
+    }
+    pub fn rsa_verify_pkcs1v15_sha256<'a>(
+        &'a self,
+        public_key: &'a [u8],
+        digest: &'a [u8; 32],
+        signature: &'a [u8],
+    ) -> RsaVerifyPkcs1v15Sha256Future<'a> {
+        RsaVerifyPkcs1v15Sha256Future {
+            backend: self.backend,
+            public_key,
+            digest,
+            signature,
+            handle: None,
+        }
+    }
+}
+
+// ===================================================================
+// RSA PKCS#1 v1.5 + SHA-384
+// ===================================================================
+
+pub struct RsaSignPkcs1v15Sha384Future<'a> {
+    backend: &'a dyn RunnerBackend,
+    private_key: &'a [u8],
+    digest: &'a [u8; 48],
+    signature: &'a mut [u8],
+    handle: Option<crate::queue::OpHandle>,
+}
+
+impl Future for RsaSignPkcs1v15Sha384Future<'_> {
+    type Output = Result<usize, CryptoError>;
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = &mut *self;
+        match this.handle {
+            None => {
+                let handle = this.backend.schedule_rsa_sign_pkcs1v15_sha384(
+                    this.private_key,
+                    this.digest,
+                    this.signature,
+                )?;
+                this.handle = Some(handle);
+                Poll::Pending
+            }
+            Some(h) => this.backend.poll_op(h, cx).map(|o| o.into_size()),
+        }
+    }
+}
+
+impl Drop for RsaSignPkcs1v15Sha384Future<'_> {
+    fn drop(&mut self) {
+        if let Some(h) = self.handle {
+            let _ = self.backend.cancel_op(h);
+        }
+    }
+}
+
+pub struct RsaVerifyPkcs1v15Sha384Future<'a> {
+    backend: &'a dyn RunnerBackend,
+    public_key: &'a [u8],
+    digest: &'a [u8; 48],
+    signature: &'a [u8],
+    handle: Option<crate::queue::OpHandle>,
+}
+
+impl Future for RsaVerifyPkcs1v15Sha384Future<'_> {
+    type Output = Result<(), CryptoError>;
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = &mut *self;
+        match this.handle {
+            None => {
+                let handle = this.backend.schedule_rsa_verify_pkcs1v15_sha384(
+                    this.public_key,
+                    this.digest,
+                    this.signature,
+                )?;
+                this.handle = Some(handle);
+                Poll::Pending
+            }
+            Some(h) => this.backend.poll_op(h, cx).map(|o| o.into_unit()),
+        }
+    }
+}
+
+impl Drop for RsaVerifyPkcs1v15Sha384Future<'_> {
+    fn drop(&mut self) {
+        if let Some(h) = self.handle {
+            let _ = self.backend.cancel_op(h);
+        }
+    }
+}
+
+impl CryptoServer<'_> {
+    pub fn rsa_sign_pkcs1v15_sha384<'a>(
+        &'a self,
+        private_key: &'a [u8],
+        digest: &'a [u8; 48],
+        signature: &'a mut [u8],
+    ) -> RsaSignPkcs1v15Sha384Future<'a> {
+        RsaSignPkcs1v15Sha384Future {
+            backend: self.backend,
+            private_key,
+            digest,
+            signature,
+            handle: None,
+        }
+    }
+    pub fn rsa_verify_pkcs1v15_sha384<'a>(
+        &'a self,
+        public_key: &'a [u8],
+        digest: &'a [u8; 48],
+        signature: &'a [u8],
+    ) -> RsaVerifyPkcs1v15Sha384Future<'a> {
+        RsaVerifyPkcs1v15Sha384Future {
+            backend: self.backend,
+            public_key,
+            digest,
+            signature,
+            handle: None,
+        }
+    }
+}
+
+// ===================================================================
+// RSA PKCS#1 v1.5 + SHA-512
+// ===================================================================
+
+pub struct RsaSignPkcs1v15Sha512Future<'a> {
+    backend: &'a dyn RunnerBackend,
+    private_key: &'a [u8],
+    digest: &'a [u8; 64],
+    signature: &'a mut [u8],
+    handle: Option<crate::queue::OpHandle>,
+}
+
+impl Future for RsaSignPkcs1v15Sha512Future<'_> {
+    type Output = Result<usize, CryptoError>;
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = &mut *self;
+        match this.handle {
+            None => {
+                let handle = this.backend.schedule_rsa_sign_pkcs1v15_sha512(
+                    this.private_key,
+                    this.digest,
+                    this.signature,
+                )?;
+                this.handle = Some(handle);
+                Poll::Pending
+            }
+            Some(h) => this.backend.poll_op(h, cx).map(|o| o.into_size()),
+        }
+    }
+}
+
+impl Drop for RsaSignPkcs1v15Sha512Future<'_> {
+    fn drop(&mut self) {
+        if let Some(h) = self.handle {
+            let _ = self.backend.cancel_op(h);
+        }
+    }
+}
+
+pub struct RsaVerifyPkcs1v15Sha512Future<'a> {
+    backend: &'a dyn RunnerBackend,
+    public_key: &'a [u8],
+    digest: &'a [u8; 64],
+    signature: &'a [u8],
+    handle: Option<crate::queue::OpHandle>,
+}
+
+impl Future for RsaVerifyPkcs1v15Sha512Future<'_> {
+    type Output = Result<(), CryptoError>;
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = &mut *self;
+        match this.handle {
+            None => {
+                let handle = this.backend.schedule_rsa_verify_pkcs1v15_sha512(
+                    this.public_key,
+                    this.digest,
+                    this.signature,
+                )?;
+                this.handle = Some(handle);
+                Poll::Pending
+            }
+            Some(h) => this.backend.poll_op(h, cx).map(|o| o.into_unit()),
+        }
+    }
+}
+
+impl Drop for RsaVerifyPkcs1v15Sha512Future<'_> {
+    fn drop(&mut self) {
+        if let Some(h) = self.handle {
+            let _ = self.backend.cancel_op(h);
+        }
+    }
+}
+
+impl CryptoServer<'_> {
+    pub fn rsa_sign_pkcs1v15_sha512<'a>(
+        &'a self,
+        private_key: &'a [u8],
+        digest: &'a [u8; 64],
+        signature: &'a mut [u8],
+    ) -> RsaSignPkcs1v15Sha512Future<'a> {
+        RsaSignPkcs1v15Sha512Future {
+            backend: self.backend,
+            private_key,
+            digest,
+            signature,
+            handle: None,
+        }
+    }
+    pub fn rsa_verify_pkcs1v15_sha512<'a>(
+        &'a self,
+        public_key: &'a [u8],
+        digest: &'a [u8; 64],
+        signature: &'a [u8],
+    ) -> RsaVerifyPkcs1v15Sha512Future<'a> {
+        RsaVerifyPkcs1v15Sha512Future {
+            backend: self.backend,
+            public_key,
+            digest,
+            signature,
+            handle: None,
+        }
+    }
+}
+
+// ===================================================================
+// RSA-PSS + SHA-256
+// ===================================================================
+
+pub struct RsaSignPssSha256Future<'a> {
+    backend: &'a dyn RunnerBackend,
+    private_key: &'a [u8],
+    digest: &'a [u8; 32],
+    signature: &'a mut [u8],
+    handle: Option<crate::queue::OpHandle>,
+}
+
+impl Future for RsaSignPssSha256Future<'_> {
+    type Output = Result<usize, CryptoError>;
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = &mut *self;
+        match this.handle {
+            None => {
+                let handle = this.backend.schedule_rsa_sign_pss_sha256(
+                    this.private_key,
+                    this.digest,
+                    this.signature,
+                )?;
+                this.handle = Some(handle);
+                Poll::Pending
+            }
+            Some(h) => this.backend.poll_op(h, cx).map(|o| o.into_size()),
+        }
+    }
+}
+
+impl Drop for RsaSignPssSha256Future<'_> {
+    fn drop(&mut self) {
+        if let Some(h) = self.handle {
+            let _ = self.backend.cancel_op(h);
+        }
+    }
+}
+
+pub struct RsaVerifyPssSha256Future<'a> {
+    backend: &'a dyn RunnerBackend,
+    public_key: &'a [u8],
+    digest: &'a [u8; 32],
+    signature: &'a [u8],
+    handle: Option<crate::queue::OpHandle>,
+}
+
+impl Future for RsaVerifyPssSha256Future<'_> {
+    type Output = Result<(), CryptoError>;
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = &mut *self;
+        match this.handle {
+            None => {
+                let handle = this.backend.schedule_rsa_verify_pss_sha256(
+                    this.public_key,
+                    this.digest,
+                    this.signature,
+                )?;
+                this.handle = Some(handle);
+                Poll::Pending
+            }
+            Some(h) => this.backend.poll_op(h, cx).map(|o| o.into_unit()),
+        }
+    }
+}
+
+impl Drop for RsaVerifyPssSha256Future<'_> {
+    fn drop(&mut self) {
+        if let Some(h) = self.handle {
+            let _ = self.backend.cancel_op(h);
+        }
+    }
+}
+
+impl CryptoServer<'_> {
+    pub fn rsa_sign_pss_sha256<'a>(
+        &'a self,
+        private_key: &'a [u8],
+        digest: &'a [u8; 32],
+        signature: &'a mut [u8],
+    ) -> RsaSignPssSha256Future<'a> {
+        RsaSignPssSha256Future {
+            backend: self.backend,
+            private_key,
+            digest,
+            signature,
+            handle: None,
+        }
+    }
+    pub fn rsa_verify_pss_sha256<'a>(
+        &'a self,
+        public_key: &'a [u8],
+        digest: &'a [u8; 32],
+        signature: &'a [u8],
+    ) -> RsaVerifyPssSha256Future<'a> {
+        RsaVerifyPssSha256Future {
+            backend: self.backend,
+            public_key,
+            digest,
+            signature,
+            handle: None,
+        }
+    }
+}
+
+// ===================================================================
+// RSA-PSS + SHA-384
+// ===================================================================
+
+pub struct RsaSignPssSha384Future<'a> {
+    backend: &'a dyn RunnerBackend,
+    private_key: &'a [u8],
+    digest: &'a [u8; 48],
+    signature: &'a mut [u8],
+    handle: Option<crate::queue::OpHandle>,
+}
+
+impl Future for RsaSignPssSha384Future<'_> {
+    type Output = Result<usize, CryptoError>;
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = &mut *self;
+        match this.handle {
+            None => {
+                let handle = this.backend.schedule_rsa_sign_pss_sha384(
+                    this.private_key,
+                    this.digest,
+                    this.signature,
+                )?;
+                this.handle = Some(handle);
+                Poll::Pending
+            }
+            Some(h) => this.backend.poll_op(h, cx).map(|o| o.into_size()),
+        }
+    }
+}
+
+impl Drop for RsaSignPssSha384Future<'_> {
+    fn drop(&mut self) {
+        if let Some(h) = self.handle {
+            let _ = self.backend.cancel_op(h);
+        }
+    }
+}
+
+pub struct RsaVerifyPssSha384Future<'a> {
+    backend: &'a dyn RunnerBackend,
+    public_key: &'a [u8],
+    digest: &'a [u8; 48],
+    signature: &'a [u8],
+    handle: Option<crate::queue::OpHandle>,
+}
+
+impl Future for RsaVerifyPssSha384Future<'_> {
+    type Output = Result<(), CryptoError>;
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = &mut *self;
+        match this.handle {
+            None => {
+                let handle = this.backend.schedule_rsa_verify_pss_sha384(
+                    this.public_key,
+                    this.digest,
+                    this.signature,
+                )?;
+                this.handle = Some(handle);
+                Poll::Pending
+            }
+            Some(h) => this.backend.poll_op(h, cx).map(|o| o.into_unit()),
+        }
+    }
+}
+
+impl Drop for RsaVerifyPssSha384Future<'_> {
+    fn drop(&mut self) {
+        if let Some(h) = self.handle {
+            let _ = self.backend.cancel_op(h);
+        }
+    }
+}
+
+impl CryptoServer<'_> {
+    pub fn rsa_sign_pss_sha384<'a>(
+        &'a self,
+        private_key: &'a [u8],
+        digest: &'a [u8; 48],
+        signature: &'a mut [u8],
+    ) -> RsaSignPssSha384Future<'a> {
+        RsaSignPssSha384Future {
+            backend: self.backend,
+            private_key,
+            digest,
+            signature,
+            handle: None,
+        }
+    }
+    pub fn rsa_verify_pss_sha384<'a>(
+        &'a self,
+        public_key: &'a [u8],
+        digest: &'a [u8; 48],
+        signature: &'a [u8],
+    ) -> RsaVerifyPssSha384Future<'a> {
+        RsaVerifyPssSha384Future {
+            backend: self.backend,
+            public_key,
+            digest,
+            signature,
+            handle: None,
+        }
+    }
+}
+
+// ===================================================================
+// RSA-PSS + SHA-512
+// ===================================================================
+
+pub struct RsaSignPssSha512Future<'a> {
+    backend: &'a dyn RunnerBackend,
+    private_key: &'a [u8],
+    digest: &'a [u8; 64],
+    signature: &'a mut [u8],
+    handle: Option<crate::queue::OpHandle>,
+}
+
+impl Future for RsaSignPssSha512Future<'_> {
+    type Output = Result<usize, CryptoError>;
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = &mut *self;
+        match this.handle {
+            None => {
+                let handle = this.backend.schedule_rsa_sign_pss_sha512(
+                    this.private_key,
+                    this.digest,
+                    this.signature,
+                )?;
+                this.handle = Some(handle);
+                Poll::Pending
+            }
+            Some(h) => this.backend.poll_op(h, cx).map(|o| o.into_size()),
+        }
+    }
+}
+
+impl Drop for RsaSignPssSha512Future<'_> {
+    fn drop(&mut self) {
+        if let Some(h) = self.handle {
+            let _ = self.backend.cancel_op(h);
+        }
+    }
+}
+
+pub struct RsaVerifyPssSha512Future<'a> {
+    backend: &'a dyn RunnerBackend,
+    public_key: &'a [u8],
+    digest: &'a [u8; 64],
+    signature: &'a [u8],
+    handle: Option<crate::queue::OpHandle>,
+}
+
+impl Future for RsaVerifyPssSha512Future<'_> {
+    type Output = Result<(), CryptoError>;
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = &mut *self;
+        match this.handle {
+            None => {
+                let handle = this.backend.schedule_rsa_verify_pss_sha512(
+                    this.public_key,
+                    this.digest,
+                    this.signature,
+                )?;
+                this.handle = Some(handle);
+                Poll::Pending
+            }
+            Some(h) => this.backend.poll_op(h, cx).map(|o| o.into_unit()),
+        }
+    }
+}
+
+impl Drop for RsaVerifyPssSha512Future<'_> {
+    fn drop(&mut self) {
+        if let Some(h) = self.handle {
+            let _ = self.backend.cancel_op(h);
+        }
+    }
+}
+
+impl CryptoServer<'_> {
+    pub fn rsa_sign_pss_sha512<'a>(
+        &'a self,
+        private_key: &'a [u8],
+        digest: &'a [u8; 64],
+        signature: &'a mut [u8],
+    ) -> RsaSignPssSha512Future<'a> {
+        RsaSignPssSha512Future {
+            backend: self.backend,
+            private_key,
+            digest,
+            signature,
+            handle: None,
+        }
+    }
+    pub fn rsa_verify_pss_sha512<'a>(
+        &'a self,
+        public_key: &'a [u8],
+        digest: &'a [u8; 64],
+        signature: &'a [u8],
+    ) -> RsaVerifyPssSha512Future<'a> {
+        RsaVerifyPssSha512Future {
             backend: self.backend,
             public_key,
             digest,
