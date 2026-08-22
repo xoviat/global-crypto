@@ -7,14 +7,16 @@ use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::mutex::Mutex;
 use embassy_sync::waitqueue::AtomicWaker;
 
-use embassy_crypto_driver::{BlockingCryptoDriver, Capabilities, CryptoDriver, CryptoError};
+use embassy_crypto_driver::{
+    Algorithm, BlockingCryptoDriver, Capabilities, CryptoDriver, CryptoError,
+};
 
 use crate::queue::{ContextHandle, ContextTable, OpHandle, OpOutput, OpTable};
 
 /// Maximum number of drivers supported by CryptoRunner.
 pub const MAX_DRIVERS: usize = 5;
 
-/// Maximum number of concurrent SHA-256 streaming contexts.
+/// Maximum number of concurrent streaming hash contexts.
 pub const MAX_CONTEXTS: usize = 4;
 
 /// A future that yields once without self-waking.
@@ -218,12 +220,18 @@ pub(crate) trait RunnerBackend {
         f: &mut dyn FnMut(&mut dyn BlockingCryptoDriver) -> Result<usize, CryptoError>,
     ) -> Option<Result<usize, CryptoError>>;
 
-    fn try_sha256_init(&self) -> Result<ContextHandle, CryptoError>;
-    fn try_sha256_update(&self, handle: ContextHandle, data: &[u8]) -> Result<(), CryptoError>;
-    fn try_sha256_finalize(
+    fn try_context_init(&self, op: Algorithm) -> Result<ContextHandle, CryptoError>;
+    fn try_context_update(
         &self,
         handle: ContextHandle,
-        out: &mut [u8; 32],
+        op: Algorithm,
+        data: &[u8],
+    ) -> Result<(), CryptoError>;
+    fn try_context_finalize(
+        &self,
+        handle: ContextHandle,
+        op: Algorithm,
+        out: &mut [u8],
     ) -> Result<(), CryptoError>;
 
     fn schedule(&self, kind: crate::queue::OpKind) -> Result<OpHandle, CryptoError>;
@@ -304,15 +312,15 @@ macro_rules! impl_crypto_runner {
                 None
             }
 
-            fn try_sha256_init(&self) -> Result<ContextHandle, CryptoError> {
+            fn try_context_init(&self, op: Algorithm) -> Result<ContextHandle, CryptoError> {
                 let handle = self.context_table.alloc()
                     .ok_or(CryptoError::HardwareError)?;
 
                 $({
                     if let Ok(mut guard) = self.drivers.$idx.try_lock() {
-                        if guard.capabilities().contains(Capabilities::SHA_256) {
+                        if guard.capabilities().contains(op.required_caps()) {
                             let ctx = unsafe { self.context_table.ctx_mut(handle) };
-                            guard.blocking_sha256_init(ctx)?;
+                            guard.blocking_hash_init(op, ctx)?;
                             unsafe {
                                 self.context_table.set_driver_idx(handle, $idx);
                             }
@@ -325,14 +333,14 @@ macro_rules! impl_crypto_runner {
                 Err(CryptoError::HardwareError)
             }
 
-            fn try_sha256_update(&self, handle: ContextHandle, data: &[u8]) -> Result<(), CryptoError> {
+            fn try_context_update(&self, handle: ContextHandle, op: Algorithm, data: &[u8]) -> Result<(), CryptoError> {
                 let driver_idx = unsafe { self.context_table.driver_idx(handle) };
                 let ctx = unsafe { self.context_table.ctx_mut(handle) };
 
                 $({
                     if driver_idx == $idx {
                         if let Ok(mut guard) = self.drivers.$idx.try_lock() {
-                            return guard.blocking_sha256_update(ctx, data);
+                            return guard.blocking_hash_update(op, ctx, data);
                         }
                     }
                 })+
@@ -340,14 +348,14 @@ macro_rules! impl_crypto_runner {
                 Err(CryptoError::HardwareError)
             }
 
-            fn try_sha256_finalize(&self, handle: ContextHandle, out: &mut [u8; 32]) -> Result<(), CryptoError> {
+            fn try_context_finalize(&self, handle: ContextHandle, op: Algorithm, out: &mut [u8]) -> Result<(), CryptoError> {
                 let driver_idx = unsafe { self.context_table.driver_idx(handle) };
                 let ctx = unsafe { self.context_table.ctx_mut(handle) };
 
                 $({
                     if driver_idx == $idx {
                         if let Ok(mut guard) = self.drivers.$idx.try_lock() {
-                            let result = guard.blocking_sha256_finalize(ctx, out);
+                            let result = guard.blocking_hash_finalize(op, ctx, out);
                             self.context_table.free(handle);
                             return result;
                         }

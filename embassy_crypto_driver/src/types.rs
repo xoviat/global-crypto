@@ -27,6 +27,12 @@ impl Capabilities {
     pub const RSA_PSS_SHA384: Self = Self(1 << 20);
     pub const RSA_PSS_SHA512: Self = Self(1 << 21);
     pub const RNG: Self = Self(1 << 22);
+    pub const SHA_1: Self = Self(1 << 23);
+    pub const MD5: Self = Self(1 << 24);
+    pub const SHA_224: Self = Self(1 << 25);
+    pub const SHA_512_224: Self = Self(1 << 26);
+    pub const SHA_512_256: Self = Self(1 << 27);
+    pub const SHA_512: Self = Self(1 << 28);
 
     #[inline]
     pub const fn contains(self, other: Self) -> bool {
@@ -40,7 +46,7 @@ impl Capabilities {
 
     #[inline]
     pub const fn all() -> Self {
-        Self((1 << 23) - 1)
+        Self((1 << 29) - 1)
     }
 }
 
@@ -82,15 +88,74 @@ impl core::fmt::Display for CryptoError {
     }
 }
 
-/// Opaque context buffer for SHA-256 streaming operations.
+/// Hash algorithm selection for streaming operations.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Algorithm {
+    /// SHA-1 Algorithm
+    SHA1 = 0,
+
+    /// MD5 Algorithm
+    MD5 = 1,
+
+    /// SHA-224 Algorithm
+    SHA224 = 2,
+
+    /// SHA-256 Algorithm
+    SHA256 = 3,
+
+    /// SHA-384 Algorithm
+    SHA384 = 12,
+
+    /// SHA-512/224 Algorithm
+    SHA512_224 = 13,
+
+    /// SHA-512/256 Algorithm
+    SHA512_256 = 14,
+
+    /// SHA-512 Algorithm
+    SHA512 = 15,
+}
+
+impl Algorithm {
+    pub const fn required_caps(&self) -> Capabilities {
+        match self {
+            Self::SHA1 => Capabilities::SHA_1,
+            Self::MD5 => Capabilities::MD5,
+            Self::SHA224 => Capabilities::SHA_224,
+            Self::SHA256 => Capabilities::SHA_256,
+            Self::SHA384 => Capabilities::SHA_384,
+            Self::SHA512_224 => Capabilities::SHA_512_224,
+            Self::SHA512_256 => Capabilities::SHA_512_256,
+            Self::SHA512 => Capabilities::SHA_512,
+        }
+    }
+
+    pub const fn digest_len(&self) -> usize {
+        match self {
+            Self::SHA1 => 20,
+            Self::MD5 => 16,
+            Self::SHA224 => 28,
+            Self::SHA256 => 32,
+            Self::SHA384 => 48,
+            Self::SHA512_224 => 28,
+            Self::SHA512_256 => 32,
+            Self::SHA512 => 64,
+        }
+    }
+}
+
+/// Opaque context buffer for streaming hash operations.
 ///
 /// Drivers interpret the contents; the framework only stores and retrieves it.
 /// The size (128 bytes) is large enough for common software and hardware
-/// SHA-256 implementations.
+/// SHA-256 and hardware SHA-384 contexts.
 #[derive(Clone, Copy)]
-pub struct Sha256Context(pub [u8; 128]);
+pub struct HashContext(pub [u8; 128]);
 
-impl Default for Sha256Context {
+/// Backwards-compatible alias.
+pub type Sha256Context = HashContext;
+
+impl Default for HashContext {
     fn default() -> Self {
         Self([0u8; 128])
     }

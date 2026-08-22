@@ -4,7 +4,7 @@ use core::sync::atomic::{AtomicU8, Ordering};
 use core::task::{Context, Poll};
 use embassy_sync::waitqueue::AtomicWaker;
 
-use embassy_crypto_driver::{Capabilities, CryptoDriver, CryptoError, Sha256Context};
+use embassy_crypto_driver::{Capabilities, CryptoDriver, CryptoError, HashContext};
 
 const STATE_FREE: u8 = 0;
 const STATE_PENDING: u8 = 1;
@@ -299,8 +299,8 @@ impl OpKind {
     /// for the duration of the async call.
     ///
     /// # Panics
-    /// Panics for streaming operations (`Sha256Update` / `Sha256Finalize`);
-    /// those must be executed by the worker directly.
+    /// Streaming hash operations are not represented as `OpKind` variants;
+    /// they are dispatched directly by the backend.
     pub async unsafe fn execute<D: CryptoDriver>(&self, driver: &mut D) -> OpOutput {
         match self {
             Self::AesGcm128Encrypt {
@@ -894,7 +894,7 @@ impl<const N: usize> OpTable<N> {
 pub struct ContextSlot {
     state: AtomicU8,
     driver_idx: UnsafeCell<MaybeUninit<usize>>,
-    ctx: UnsafeCell<MaybeUninit<Sha256Context>>,
+    ctx: UnsafeCell<MaybeUninit<HashContext>>,
 }
 
 // SAFETY: ContextSlot is only accessed through ContextTable's atomic state machine.
@@ -917,10 +917,10 @@ impl ContextSlot {
     }
 }
 
-/// Fixed-size pool of SHA-256 streaming contexts.
+/// Fixed-size pool of streaming hash contexts.
 ///
-/// Contexts are allocated by `sha256_init`, used by `sha256_update` /
-/// `sha256_finalize`, and freed by `sha256_finalize` (or on init failure).
+/// Contexts are allocated by `hash_init`, used by `hash_update` /
+/// `hash_finalize`, and freed by `hash_finalize` (or on init failure).
 pub struct ContextTable<const N: usize> {
     slots: [ContextSlot; N],
 }
@@ -1011,7 +1011,7 @@ impl<const N: usize> ContextTable<N> {
     /// # Safety
     /// Caller must ensure the slot is in INIT or BUSY state and that no
     /// other reference to this context exists concurrently.
-    pub unsafe fn ctx_mut(&self, handle: ContextHandle) -> &mut Sha256Context {
+    pub unsafe fn ctx_mut(&self, handle: ContextHandle) -> &mut HashContext {
         let slot = &self.slots[handle.idx];
         unsafe { &mut *(*slot.ctx.get()).as_mut_ptr() }
     }

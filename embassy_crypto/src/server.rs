@@ -3,7 +3,7 @@ use core::pin::Pin;
 use core::task::{Context, Poll};
 
 use crate::runner::RunnerBackend;
-use embassy_crypto_driver::{Capabilities, CryptoError};
+use embassy_crypto_driver::{Algorithm, Capabilities, CryptoError};
 
 /// Generate a blocking crypto operation that returns `Result<(), CryptoError>`.
 macro_rules! impl_blocking_op {
@@ -105,6 +105,29 @@ macro_rules! async_op_ctor {
     };
 }
 
+/// Generate a triplet of blocking streaming-hash methods (init/update/finalize).
+macro_rules! impl_streaming_hash {
+    ($init:ident, $update:ident, $finalize:ident, $algo:expr, $digest_len:expr) => {
+        pub fn $init(&self) -> Result<crate::queue::ContextHandle, CryptoError> {
+            self.backend.try_context_init($algo)
+        }
+        pub fn $update(
+            &self,
+            ctx: crate::queue::ContextHandle,
+            data: &[u8],
+        ) -> Result<(), CryptoError> {
+            self.backend.try_context_update(ctx, $algo, data)
+        }
+        pub fn $finalize(
+            &self,
+            ctx: crate::queue::ContextHandle,
+            out: &mut [u8; $digest_len],
+        ) -> Result<(), CryptoError> {
+            self.backend.try_context_finalize(ctx, $algo, out)
+        }
+    };
+}
+
 pub struct CryptoServer<'a> {
     pub(crate) backend: &'a dyn RunnerBackend,
 }
@@ -174,27 +197,52 @@ impl CryptoServer<'_> {
     async_op_ctor!(rsa_verify_pss_sha512, RsaVerifyPssSha512Future, [public_key: &'a [u8], digest: &'a [u8; 64], signature: &'a [u8]]);
 
     // ------------------------------------------------------------------
-    // Blocking streaming SHA-256
+    // Blocking streaming hash operations
     // ------------------------------------------------------------------
-    pub fn sha256_init(&self) -> Result<crate::queue::ContextHandle, CryptoError> {
-        self.backend.try_sha256_init()
-    }
-
-    pub fn sha256_update(
-        &self,
-        ctx: crate::queue::ContextHandle,
-        data: &[u8],
-    ) -> Result<(), CryptoError> {
-        self.backend.try_sha256_update(ctx, data)
-    }
-
-    pub fn sha256_finalize(
-        &self,
-        ctx: crate::queue::ContextHandle,
-        out: &mut [u8; 32],
-    ) -> Result<(), CryptoError> {
-        self.backend.try_sha256_finalize(ctx, out)
-    }
+    impl_streaming_hash!(sha1_init, sha1_update, sha1_finalize, Algorithm::SHA1, 20);
+    impl_streaming_hash!(md5_init, md5_update, md5_finalize, Algorithm::MD5, 16);
+    impl_streaming_hash!(
+        sha224_init,
+        sha224_update,
+        sha224_finalize,
+        Algorithm::SHA224,
+        28
+    );
+    impl_streaming_hash!(
+        sha256_init,
+        sha256_update,
+        sha256_finalize,
+        Algorithm::SHA256,
+        32
+    );
+    impl_streaming_hash!(
+        sha384_init,
+        sha384_update,
+        sha384_finalize,
+        Algorithm::SHA384,
+        48
+    );
+    impl_streaming_hash!(
+        sha512_224_init,
+        sha512_224_update,
+        sha512_224_finalize,
+        Algorithm::SHA512_224,
+        28
+    );
+    impl_streaming_hash!(
+        sha512_256_init,
+        sha512_256_update,
+        sha512_256_finalize,
+        Algorithm::SHA512_256,
+        32
+    );
+    impl_streaming_hash!(
+        sha512_init,
+        sha512_update,
+        sha512_finalize,
+        Algorithm::SHA512,
+        64
+    );
 }
 
 // ------------------------------------------------------------------

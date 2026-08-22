@@ -4,11 +4,11 @@ pub mod queue;
 pub mod runner;
 pub mod server;
 
-pub use queue::ContextHandle as Sha256ContextHandle;
+pub use queue::ContextHandle as HashContextHandle;
 pub use server::CryptoServer;
 
 use embassy_crypto_driver::{
-    BlockingCryptoDriver, Capabilities, CryptoDriver, CryptoError, Sha256Context,
+    Algorithm, BlockingCryptoDriver, Capabilities, CryptoDriver, CryptoError, HashContext,
 };
 
 pub struct MockDriver;
@@ -258,23 +258,29 @@ impl BlockingCryptoDriver for MockDriver {
         Ok(())
     }
 
-    fn blocking_sha256_init(&mut self, ctx: &mut Sha256Context) -> Result<(), CryptoError> {
+    fn blocking_hash_init(
+        &mut self,
+        _op: Algorithm,
+        ctx: &mut HashContext,
+    ) -> Result<(), CryptoError> {
         ctx.0.fill(0);
         Ok(())
     }
 
-    fn blocking_sha256_update(
+    fn blocking_hash_update(
         &mut self,
-        _ctx: &mut Sha256Context,
+        _op: Algorithm,
+        _ctx: &mut HashContext,
         _data: &[u8],
     ) -> Result<(), CryptoError> {
         Ok(())
     }
 
-    fn blocking_sha256_finalize(
+    fn blocking_hash_finalize(
         &mut self,
-        _ctx: &mut Sha256Context,
-        out: &mut [u8; 32],
+        _op: Algorithm,
+        _ctx: &mut HashContext,
+        out: &mut [u8],
     ) -> Result<(), CryptoError> {
         out.fill(0x0A);
         Ok(())
