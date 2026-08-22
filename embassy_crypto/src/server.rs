@@ -180,12 +180,30 @@ impl CryptoServer<'_> {
         self.backend.try_sha256_init()
     }
 
-    pub fn sha256_update<'a>(&'a self, ctx: crate::queue::ContextHandle, data: &'a [u8]) -> Sha256UpdateFuture<'a> {
-        Sha256UpdateFuture { backend: self.backend, ctx_handle: ctx, data, handle: None }
+    pub fn sha256_update<'a>(
+        &'a self,
+        ctx: crate::queue::ContextHandle,
+        data: &'a [u8],
+    ) -> Sha256UpdateFuture<'a> {
+        Sha256UpdateFuture {
+            backend: self.backend,
+            ctx_handle: ctx,
+            data,
+            handle: None,
+        }
     }
 
-    pub fn sha256_finalize<'a>(&'a self, ctx: crate::queue::ContextHandle, out: &'a mut [u8; 32]) -> Sha256FinalizeFuture<'a> {
-        Sha256FinalizeFuture { backend: self.backend, ctx_handle: ctx, out, handle: None }
+    pub fn sha256_finalize<'a>(
+        &'a self,
+        ctx: crate::queue::ContextHandle,
+        out: &'a mut [u8; 32],
+    ) -> Sha256FinalizeFuture<'a> {
+        Sha256FinalizeFuture {
+            backend: self.backend,
+            ctx_handle: ctx,
+            out,
+            handle: None,
+        }
     }
 }
 
@@ -243,7 +261,10 @@ impl Future for Sha256UpdateFuture<'_> {
         let this = &mut *self;
         match this.handle {
             None => {
-                let handle = this.backend.schedule(crate::queue::OpKind::Sha256Update { ctx_handle: this.ctx_handle, data: this.data })?;
+                let handle = this.backend.schedule(crate::queue::OpKind::Sha256Update {
+                    ctx_handle: this.ctx_handle,
+                    data: this.data,
+                })?;
                 this.handle = Some(handle);
                 Poll::Pending
             }
@@ -273,7 +294,12 @@ impl Future for Sha256FinalizeFuture<'_> {
         let this = &mut *self;
         match this.handle {
             None => {
-                let handle = this.backend.schedule(crate::queue::OpKind::Sha256Finalize { ctx_handle: this.ctx_handle, out: this.out })?;
+                let handle = this
+                    .backend
+                    .schedule(crate::queue::OpKind::Sha256Finalize {
+                        ctx_handle: this.ctx_handle,
+                        out: this.out,
+                    })?;
                 this.handle = Some(handle);
                 Poll::Pending
             }

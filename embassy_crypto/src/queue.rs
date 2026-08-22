@@ -1027,7 +1027,9 @@ impl<const N: usize> ContextTable<N> {
     /// Caller must have allocated the slot and not yet freed it.
     pub unsafe fn set_driver_idx(&self, handle: ContextHandle, idx: usize) {
         let slot = &self.slots[handle.idx];
-        unsafe { (*slot.driver_idx.get()).write(idx); }
+        unsafe {
+            (*slot.driver_idx.get()).write(idx);
+        }
     }
 
     /// Get the driver index that owns this context.

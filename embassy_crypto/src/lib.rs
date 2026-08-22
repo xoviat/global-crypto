@@ -625,7 +625,10 @@ mod tests {
     #[tokio::test]
     async fn test_two_drivers() {
         let runner: runner::CryptoRunner<
-            (Mutex<CriticalSectionRawMutex, MockDriver>, Mutex<CriticalSectionRawMutex, MockDriver>),
+            (
+                Mutex<CriticalSectionRawMutex, MockDriver>,
+                Mutex<CriticalSectionRawMutex, MockDriver>,
+            ),
             16,
         > = runner::CryptoRunner::new((MockDriver, MockDriver));
         let server = runner.server();
