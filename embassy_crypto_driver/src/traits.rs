@@ -1,4 +1,4 @@
-use crate::types::{Capabilities, CryptoError};
+use crate::types::{Capabilities, CryptoError, Sha256Context};
 use core::future::Future;
 
 pub trait BlockingCryptoDriver {
@@ -151,6 +151,11 @@ pub trait BlockingCryptoDriver {
         digest: &[u8; 64],
         signature: &[u8],
     ) -> Result<(), CryptoError>;
+
+    /// Initialize a SHA-256 streaming context.
+    ///
+    /// The driver should zero/reset its internal hash state into `ctx`.
+    fn blocking_sha256_init(&mut self, ctx: &mut Sha256Context) -> Result<(), CryptoError>;
 }
 
 /// Asynchronous cryptographic hardware driver.
@@ -374,5 +379,19 @@ pub trait CryptoDriver: BlockingCryptoDriver {
         public_key: &'a [u8],
         digest: &'a [u8; 64],
         signature: &'a [u8],
+    ) -> impl Future<Output = Result<(), CryptoError>> + 'a;
+
+    /// Update a SHA-256 streaming context with more data.
+    fn sha256_update<'a>(
+        &'a mut self,
+        ctx: &'a mut Sha256Context,
+        data: &'a [u8],
+    ) -> impl Future<Output = Result<(), CryptoError>> + 'a;
+
+    /// Finalize a SHA-256 streaming context and write the digest.
+    fn sha256_finalize<'a>(
+        &'a mut self,
+        ctx: &'a mut Sha256Context,
+        out: &'a mut [u8; 32],
     ) -> impl Future<Output = Result<(), CryptoError>> + 'a;
 }

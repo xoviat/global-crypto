@@ -4,13 +4,17 @@ use core::sync::atomic::{AtomicU8, Ordering};
 use core::task::{Context, Poll};
 use embassy_sync::waitqueue::AtomicWaker;
 
-use embassy_crypto_driver::{Capabilities, CryptoDriver, CryptoError};
+use embassy_crypto_driver::{Capabilities, CryptoDriver, CryptoError, Sha256Context};
 
 const STATE_FREE: u8 = 0;
 const STATE_PENDING: u8 = 1;
 const STATE_RUNNING: u8 = 2;
 const STATE_COMPLETE: u8 = 3;
 const STATE_CANCELLED: u8 = 4;
+
+const CTX_STATE_FREE: u8 = 0;
+const CTX_STATE_INIT: u8 = 1;
+const CTX_STATE_BUSY: u8 = 2;
 
 /// Result of an async operation, discriminating between unit and size outputs.
 #[derive(Clone, Copy, Debug)]
@@ -42,6 +46,12 @@ impl OpOutput {
 /// Opaque handle to an in-flight operation in the `OpTable`.
 #[derive(Clone, Copy)]
 pub struct OpHandle {
+    pub(crate) idx: usize,
+}
+
+/// Opaque handle to a SHA-256 streaming context.
+#[derive(Clone, Copy)]
+pub struct ContextHandle {
     pub(crate) idx: usize,
 }
 
@@ -218,6 +228,16 @@ pub enum OpKind {
         digest: *const [u8; 64],
         signature: *const [u8],
     },
+    /// Streaming SHA-256 update.
+    Sha256Update {
+        ctx_handle: ContextHandle,
+        data: *const [u8],
+    },
+    /// Streaming SHA-256 finalize.
+    Sha256Finalize {
+        ctx_handle: ContextHandle,
+        out: *mut [u8; 32],
+    },
 }
 
 unsafe impl Sync for OpKind {}
@@ -238,7 +258,9 @@ impl OpKind {
             Self::AesCcm8_128Encrypt { .. } | Self::AesCcm8_128Decrypt { .. } => {
                 Capabilities::AES_128_CCM8
             }
-            Self::Sha256 { .. } => Capabilities::SHA_256,
+            Self::Sha256 { .. } | Self::Sha256Update { .. } | Self::Sha256Finalize { .. } => {
+                Capabilities::SHA_256
+            }
             Self::Sha384 { .. } => Capabilities::SHA_384,
             Self::P256Keygen { .. } => Capabilities::P256_KEYGEN,
             Self::P256Ecdh { .. } => Capabilities::P256_ECDH,
@@ -282,11 +304,35 @@ impl OpKind {
         }
     }
 
+    /// True if this operation requires a bound streaming context.
+    pub fn is_streaming(&self) -> bool {
+        matches!(
+            self,
+            Self::Sha256Update { .. } | Self::Sha256Finalize { .. }
+        )
+    }
+
+    /// Extract the context handle from a streaming operation.
+    ///
+    /// # Panics
+    /// Panics if `is_streaming()` is false.
+    pub fn ctx_handle(&self) -> ContextHandle {
+        match self {
+            Self::Sha256Update { ctx_handle, .. } => *ctx_handle,
+            Self::Sha256Finalize { ctx_handle, .. } => *ctx_handle,
+            _ => panic!("not a streaming operation"),
+        }
+    }
+
     /// Execute this operation on the given driver.
     ///
     /// # Safety
     /// All raw pointers stored in this `OpKind` must be valid and unaliased
     /// for the duration of the async call.
+    ///
+    /// # Panics
+    /// Panics for streaming operations (`Sha256Update` / `Sha256Finalize`);
+    /// those must be executed by the worker directly.
     pub async unsafe fn execute<D: CryptoDriver>(&self, driver: &mut D) -> OpOutput {
         match self {
             Self::AesGcm128Encrypt {
@@ -677,6 +723,9 @@ impl OpKind {
                     })
                     .await,
             ),
+            Self::Sha256Update { .. } | Self::Sha256Finalize { .. } => {
+                panic!("streaming ops must be executed by the worker directly")
+            }
         }
     }
 }
@@ -873,5 +922,130 @@ impl<const N: usize> OpTable<N> {
     /// Register a waker to be notified on state change.
     pub fn register_waker(&self, handle: OpHandle, waker: &core::task::Waker) {
         self.slots[handle.idx].waker.register(waker);
+    }
+}
+
+/// One slot in the fixed-size hash context table.
+pub struct ContextSlot {
+    state: AtomicU8,
+    driver_idx: UnsafeCell<MaybeUninit<usize>>,
+    ctx: UnsafeCell<MaybeUninit<Sha256Context>>,
+}
+
+// SAFETY: ContextSlot is only accessed through ContextTable's atomic state machine.
+unsafe impl Send for ContextSlot {}
+unsafe impl Sync for ContextSlot {}
+
+impl Default for ContextSlot {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ContextSlot {
+    pub const fn new() -> Self {
+        Self {
+            state: AtomicU8::new(CTX_STATE_FREE),
+            driver_idx: UnsafeCell::new(MaybeUninit::uninit()),
+            ctx: UnsafeCell::new(MaybeUninit::uninit()),
+        }
+    }
+}
+
+/// Fixed-size pool of SHA-256 streaming contexts.
+///
+/// Contexts are allocated by `sha256_init`, used by `sha256_update` /
+/// `sha256_finalize`, and freed by `sha256_finalize` (or on init failure).
+pub struct ContextTable<const N: usize> {
+    slots: [ContextSlot; N],
+}
+
+impl<const N: usize> Default for ContextTable<N> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<const N: usize> ContextTable<N> {
+    pub fn new() -> Self {
+        Self {
+            slots: core::array::from_fn(|_| ContextSlot::new()),
+        }
+    }
+
+    /// Try to allocate a free context slot.
+    /// Transitions FREE → INIT on success.
+    pub fn alloc(&self) -> Option<ContextHandle> {
+        for (i, slot) in self.slots.iter().enumerate() {
+            if slot
+                .state
+                .compare_exchange(
+                    CTX_STATE_FREE,
+                    CTX_STATE_INIT,
+                    Ordering::AcqRel,
+                    Ordering::Acquire,
+                )
+                .is_ok()
+            {
+                return Some(ContextHandle { idx: i });
+            }
+        }
+        None
+    }
+
+    /// Free a context slot, transitioning any state → FREE.
+    pub fn free(&self, handle: ContextHandle) {
+        self.slots[handle.idx]
+            .state
+            .store(CTX_STATE_FREE, Ordering::Release);
+    }
+
+    /// Transition INIT → BUSY.
+    /// Returns false if the slot was not in INIT state.
+    pub fn set_busy(&self, handle: ContextHandle) -> bool {
+        self.slots[handle.idx]
+            .state
+            .compare_exchange(
+                CTX_STATE_INIT,
+                CTX_STATE_BUSY,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            )
+            .is_ok()
+    }
+
+    /// Transition BUSY → INIT.
+    pub fn return_to_init(&self, handle: ContextHandle) {
+        self.slots[handle.idx]
+            .state
+            .store(CTX_STATE_INIT, Ordering::Release);
+    }
+
+    /// Store the driver index that owns this context.
+    ///
+    /// # Safety
+    /// Caller must have allocated the slot and not yet freed it.
+    pub unsafe fn set_driver_idx(&self, handle: ContextHandle, idx: usize) {
+        let slot = &self.slots[handle.idx];
+        (*slot.driver_idx.get()).write(idx);
+    }
+
+    /// Get the driver index that owns this context.
+    ///
+    /// # Safety
+    /// Caller must ensure the slot is in INIT or BUSY state.
+    pub unsafe fn driver_idx(&self, handle: ContextHandle) -> usize {
+        let slot = &self.slots[handle.idx];
+        *(*slot.driver_idx.get()).as_mut_ptr()
+    }
+
+    /// Get a mutable reference to the context data.
+    ///
+    /// # Safety
+    /// Caller must ensure the slot is in INIT or BUSY state and that no
+    /// other reference to this context exists concurrently.
+    pub unsafe fn ctx_mut(&self, handle: ContextHandle) -> &mut Sha256Context {
+        let slot = &self.slots[handle.idx];
+        &mut *(*slot.ctx.get()).as_mut_ptr()
     }
 }

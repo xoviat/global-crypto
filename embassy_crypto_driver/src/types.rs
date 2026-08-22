@@ -81,3 +81,17 @@ impl core::fmt::Display for CryptoError {
         }
     }
 }
+
+/// Opaque context buffer for SHA-256 streaming operations.
+///
+/// Drivers interpret the contents; the framework only stores and retrieves it.
+/// The size (128 bytes) is large enough for common software and hardware
+/// SHA-256 implementations.
+#[derive(Clone, Copy)]
+pub struct Sha256Context(pub [u8; 128]);
+
+impl Default for Sha256Context {
+    fn default() -> Self {
+        Self([0u8; 128])
+    }
+}

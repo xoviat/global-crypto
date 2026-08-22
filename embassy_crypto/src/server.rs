@@ -1949,3 +1949,99 @@ impl CryptoServer<'_> {
         }
     }
 }
+
+// ===================================================================
+// SHA-256 Streaming
+// ===================================================================
+
+impl CryptoServer<'_> {
+    pub fn sha256_init(&self) -> Result<crate::queue::ContextHandle, CryptoError> {
+        self.backend.try_sha256_init()
+    }
+
+    pub fn sha256_update<'a>(
+        &'a self,
+        ctx: crate::queue::ContextHandle,
+        data: &'a [u8],
+    ) -> Sha256UpdateFuture<'a> {
+        Sha256UpdateFuture {
+            backend: self.backend,
+            ctx,
+            data,
+            handle: None,
+        }
+    }
+
+    pub fn sha256_finalize<'a>(
+        &'a self,
+        ctx: crate::queue::ContextHandle,
+        out: &'a mut [u8; 32],
+    ) -> Sha256FinalizeFuture<'a> {
+        Sha256FinalizeFuture {
+            backend: self.backend,
+            ctx,
+            out,
+            handle: None,
+        }
+    }
+}
+
+pub struct Sha256UpdateFuture<'a> {
+    backend: &'a dyn RunnerBackend,
+    ctx: crate::queue::ContextHandle,
+    data: &'a [u8],
+    handle: Option<crate::queue::OpHandle>,
+}
+
+impl Future for Sha256UpdateFuture<'_> {
+    type Output = Result<(), CryptoError>;
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = &mut *self;
+        match this.handle {
+            None => {
+                let handle = this.backend.schedule_sha256_update(this.ctx, this.data)?;
+                this.handle = Some(handle);
+                Poll::Pending
+            }
+            Some(h) => this.backend.poll_op(h, cx).map(|o| o.into_unit()),
+        }
+    }
+}
+
+impl Drop for Sha256UpdateFuture<'_> {
+    fn drop(&mut self) {
+        if let Some(h) = self.handle {
+            let _ = self.backend.cancel_op(h);
+        }
+    }
+}
+
+pub struct Sha256FinalizeFuture<'a> {
+    backend: &'a dyn RunnerBackend,
+    ctx: crate::queue::ContextHandle,
+    out: &'a mut [u8; 32],
+    handle: Option<crate::queue::OpHandle>,
+}
+
+impl Future for Sha256FinalizeFuture<'_> {
+    type Output = Result<(), CryptoError>;
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = &mut *self;
+        match this.handle {
+            None => {
+                let handle = this.backend.schedule_sha256_finalize(this.ctx, this.out)?;
+                this.handle = Some(handle);
+                Poll::Pending
+            }
+            Some(h) => this.backend.poll_op(h, cx).map(|o| o.into_unit()),
+        }
+    }
+}
+
+impl Drop for Sha256FinalizeFuture<'_> {
+    fn drop(&mut self) {
+        if let Some(h) = self.handle {
+            let _ = self.backend.cancel_op(h);
+        }
+    }
+}
