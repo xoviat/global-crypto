@@ -65,7 +65,7 @@ impl DriverSlot {
 
 /// Hardware crypto multiplexer.
 ///
-/// `Drivers` is a tuple of `&Mutex<CriticalSectionRawMutex, D>` references.
+/// `Drivers` is a tuple of `Mutex<CriticalSectionRawMutex, D>` instances.
 /// `T` is the maximum number of in-flight ops.
 pub struct CryptoRunner<Drivers, const T: usize> {
     drivers: Drivers,
@@ -582,11 +582,11 @@ pub(crate) trait RunnerBackend {
 
 macro_rules! impl_crypto_runner {
       ($($idx:tt => $T:ident),+) => {
-        impl<'a, $($T: CryptoDriver),+, const T: usize> CryptoRunner<
-            ($(&'a Mutex<CriticalSectionRawMutex, $T>,)+),
+        impl<$($T: CryptoDriver),+, const T: usize> CryptoRunner<
+            ($(Mutex<CriticalSectionRawMutex, $T>,)+),
             T,
         > {
-            pub fn new(drivers: ($(&'a Mutex<CriticalSectionRawMutex, $T>,)+)) -> Self {
+            pub fn new(drivers: ($($T,)+)) -> Self {
                 let driver_slots = [const { DriverSlot::new(Capabilities(0)) }; MAX_DRIVERS];
                 let num_drivers = {
                     let mut n = 0usize;
@@ -594,7 +594,7 @@ macro_rules! impl_crypto_runner {
                     n
                 };
                 Self {
-                    drivers,
+                    drivers: ($(Mutex::<CriticalSectionRawMutex, _>::new(drivers.$idx),)+),
                     driver_slots,
                     num_drivers,
                     op_table: OpTable::new(),
@@ -608,7 +608,7 @@ macro_rules! impl_crypto_runner {
             #[allow(unreachable_code)]
             pub async fn run(&self) -> ! {
                 join_n!(
-                    $(driver_worker(self.drivers.$idx, &self.driver_slots[$idx], &self.op_table, &self.context_table, $idx)),+
+                    $(driver_worker(&self.drivers.$idx, &self.driver_slots[$idx], &self.op_table, &self.context_table, $idx)),+
                 ).await;
 
                 unreachable!();
@@ -620,8 +620,8 @@ macro_rules! impl_crypto_runner {
             }
         }
 
-        impl<'a, $($T: CryptoDriver),+, const T: usize> RunnerBackend
-            for CryptoRunner<($(&'a Mutex<CriticalSectionRawMutex, $T>,)+), T>
+        impl<$($T: CryptoDriver),+, const T: usize> RunnerBackend
+            for CryptoRunner<($(Mutex<CriticalSectionRawMutex, $T>,)+), T>
         {
             fn try_blocking(
                 &self,

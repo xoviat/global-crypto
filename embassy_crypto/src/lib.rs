@@ -604,12 +604,13 @@ impl CryptoDriver for MockDriver {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use embassy_crypto_driver::CryptoError;
+    use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
+    use embassy_sync::mutex::Mutex;
 
     #[tokio::test]
     async fn test_single_driver() {
-        let driver = Mutex::<CriticalSectionRawMutex, _>::new(MockDriver);
-        let runner = runner::CryptoRunner::new((&driver,));
+        let runner: runner::CryptoRunner<(Mutex<CriticalSectionRawMutex, MockDriver>,), 16> =
+            runner::CryptoRunner::new((MockDriver,));
         let server = runner.server();
 
         let mut buf = [0u8; 32];
@@ -623,9 +624,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_two_drivers() {
-        let driver1 = Mutex::<CriticalSectionRawMutex, _>::new(MockDriver);
-        let driver2 = Mutex::<CriticalSectionRawMutex, _>::new(MockDriver);
-        let runner = runner::CryptoRunner::new((&driver1, &driver2));
+        let runner: runner::CryptoRunner<
+            (Mutex<CriticalSectionRawMutex, MockDriver>, Mutex<CriticalSectionRawMutex, MockDriver>),
+            16,
+        > = runner::CryptoRunner::new((MockDriver, MockDriver));
         let server = runner.server();
 
         let mut out = [0u8; 32];
@@ -635,8 +637,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_streaming_sha256() {
-        let driver = Mutex::<CriticalSectionRawMutex, _>::new(MockDriver);
-        let runner = runner::CryptoRunner::new((&driver,));
+        let runner: runner::CryptoRunner<(Mutex<CriticalSectionRawMutex, MockDriver>,), 16> =
+            runner::CryptoRunner::new((MockDriver,));
         let server = runner.server();
 
         let ctx = server.sha256_init().unwrap();
