@@ -514,4 +514,11 @@ pub trait CryptoDriver: BlockingCryptoDriver {
     ) -> impl Future<Output = Result<(), CryptoError>> + 'a {
         core::future::ready(Err(CryptoError::Unsupported))
     }
+
+    fn fill_rng_async<'a>(
+        &'a mut self,
+        _dest: &'a mut [u8],
+    ) -> impl Future<Output = Result<(), CryptoError>> + 'a {
+        core::future::ready(Err(CryptoError::Unsupported))
+    }
 }

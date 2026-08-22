@@ -136,7 +136,14 @@ impl CryptoServer<'_> {
     // ------------------------------------------------------------------
     // Blocking operations
     // ------------------------------------------------------------------
-    impl_blocking_op!(blocking_rng_fill, Capabilities::RNG, blocking_rng_fill, [dest: &mut [u8]]);
+    pub fn blocking_rng_fill(&self, dest: &mut [u8]) -> Result<(), CryptoError> {
+        if let Some(result) = self.backend.try_rng_fill(dest) {
+            return result;
+        }
+        self.backend
+            .try_blocking(Capabilities::RNG, &mut |drv| drv.blocking_rng_fill(dest))
+            .unwrap_or(Err(CryptoError::HardwareError))
+    }
     impl_blocking_op!(blocking_aes_128_ecb_encrypt, Capabilities::AES_128_ECB, blocking_aes_128_ecb_encrypt, [block: &mut [u8; 16], key: &[u8; 16]]);
     impl_blocking_op!(blocking_aes_128_ecb_decrypt, Capabilities::AES_128_ECB, blocking_aes_128_ecb_decrypt, [block: &mut [u8; 16], key: &[u8; 16]]);
     impl_blocking_op!(blocking_aes_128_cmac, Capabilities::AES_128_CMAC, blocking_aes_128_cmac, [key: &[u8; 16], data: &[u8], out: &mut [u8; 16]]);

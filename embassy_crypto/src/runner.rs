@@ -65,6 +65,55 @@ impl DriverSlot {
     }
 }
 
+/// Ring buffer for pre-fetched RNG bytes.
+pub struct RngBuffer {
+    buf: [u8; 256],
+    head: usize,
+    len: usize,
+}
+
+impl Default for RngBuffer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl RngBuffer {
+    pub const fn new() -> Self {
+        Self {
+            buf: [0; 256],
+            head: 0,
+            len: 0,
+        }
+    }
+    pub fn drain(&mut self, dest: &mut [u8]) -> usize {
+        let n = dest.len().min(self.len);
+        for byte in dest.iter_mut().take(n) {
+            *byte = self.buf[self.head];
+            self.head = (self.head + 1) % 256;
+        }
+        self.len -= n;
+        n
+    }
+    pub fn fill(&mut self, src: &[u8]) -> usize {
+        let space = 256 - self.len;
+        let n = src.len().min(space);
+        let mut tail = (self.head + self.len) % 256;
+        for byte in src.iter().take(n) {
+            self.buf[tail] = *byte;
+            tail = (tail + 1) % 256;
+        }
+        self.len += n;
+        n
+    }
+    pub fn len(&self) -> usize {
+        self.len
+    }
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+}
+
 /// Hardware crypto multiplexer.
 ///
 /// `Drivers` is a tuple of `Mutex<CriticalSectionRawMutex, D>` instances.
@@ -75,6 +124,7 @@ pub struct CryptoRunner<Drivers, const T: usize> {
     num_drivers: usize,
     op_table: OpTable<T>,
     context_table: ContextTable<MAX_CONTEXTS>,
+    rng_buffer: Mutex<CriticalSectionRawMutex, RngBuffer>,
 }
 
 /// Per-driver worker future. Scans the OpTable for PENDING ops it can handle.
@@ -199,6 +249,12 @@ macro_rules! join_n {
     ($f1:expr, $f2:expr, $f3:expr, $f4:expr, $f5:expr) => {
         embassy_futures::join::join5($f1, $f2, $f3, $f4, $f5)
     };
+    ($f1:expr, $f2:expr, $f3:expr, $f4:expr, $f5:expr, $f6:expr) => {
+        embassy_futures::join::join(
+            embassy_futures::join::join3($f1, $f2, $f3),
+            embassy_futures::join::join3($f4, $f5, $f6),
+        )
+    };
 }
 
 /// Object-safe backend used by `CryptoServer`.
@@ -233,6 +289,8 @@ pub(crate) trait RunnerBackend {
 
     fn poll_op(&self, handle: OpHandle, cx: &mut Context<'_>) -> Poll<OpOutput>;
     fn cancel_op(&self, handle: OpHandle) -> Result<(), CryptoError>;
+
+    fn try_rng_fill(&self, dest: &mut [u8]) -> Option<Result<(), CryptoError>>;
 }
 
 macro_rules! impl_crypto_runner {
@@ -254,6 +312,35 @@ macro_rules! impl_crypto_runner {
                     num_drivers,
                     op_table: OpTable::new(),
                     context_table: ContextTable::new(),
+                    rng_buffer: Mutex::new(RngBuffer::new()),
+                }
+            }
+
+            /// Refill the RNG buffer asynchronously.
+            async fn rng_refill(&self) {
+                let mut temp = [0u8; 256];
+                loop {
+                    let need_refill = {
+                        if let Ok(buf) = self.rng_buffer.try_lock() {
+                            buf.len() < 128
+                        } else {
+                            false
+                        }
+                    };
+                    if need_refill {
+                        $({
+                            if let Ok(mut guard) = self.drivers.$idx.try_lock() {
+                                if guard.capabilities().contains(Capabilities::RNG) {
+                                    if (&mut *guard).fill_rng_async(&mut temp).await.is_ok() {
+                                        if let Ok(mut buf) = self.rng_buffer.try_lock() {
+                                            buf.fill(&temp);
+                                        }
+                                    }
+                                }
+                            }
+                        })+
+                    }
+                    yield_now().await;
                 }
             }
 
@@ -263,6 +350,7 @@ macro_rules! impl_crypto_runner {
             #[allow(unreachable_code)]
             pub async fn run(&self) -> ! {
                 join_n!(
+                    self.rng_refill(),
                     $(driver_worker(&self.drivers.$idx, &self.driver_slots[$idx], &self.op_table)),+
                 ).await;
 
@@ -374,6 +462,16 @@ macro_rules! impl_crypto_runner {
             fn cancel_op(&self, handle: OpHandle) -> Result<(), CryptoError> {
                 self.op_table.cancel(handle);
                 Ok(())
+            }
+
+            fn try_rng_fill(&self, dest: &mut [u8]) -> Option<Result<(), CryptoError>> {
+                if let Ok(mut buf) = self.rng_buffer.try_lock() {
+                    if buf.len() >= dest.len() {
+                        buf.drain(dest);
+                        return Some(Ok(()));
+                    }
+                }
+                None
             }
         }
     };
