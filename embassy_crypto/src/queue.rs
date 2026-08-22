@@ -1011,8 +1011,8 @@ impl<const N: usize> ContextTable<N> {
     /// # Safety
     /// Caller must ensure the slot is in INIT or BUSY state and that no
     /// other reference to this context exists concurrently.
-    pub unsafe fn ctx_mut(&self, handle: ContextHandle) -> &mut HashContext {
+    pub unsafe fn ctx_mut(&self, handle: ContextHandle) -> *mut HashContext {
         let slot = &self.slots[handle.idx];
-        unsafe { &mut *(*slot.ctx.get()).as_mut_ptr() }
+        unsafe { (*slot.ctx.get()).as_mut_ptr() }
     }
 }

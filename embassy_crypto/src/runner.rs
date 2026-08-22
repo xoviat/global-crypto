@@ -156,11 +156,6 @@ async fn driver_worker<D: CryptoDriver, const T: usize>(
                     })
                     .await;
 
-                    // Explicitly drop the driver future before completing so
-                    // its Drop impl can abort DMA / clean hardware state
-                    // before the caller is woken and potentially frees buffers.
-                    drop(exec_fut);
-
                     op_table.complete(handle, result);
                     found = true;
                     break;
@@ -319,7 +314,7 @@ macro_rules! impl_crypto_runner {
                 $({
                     if let Ok(mut guard) = self.drivers.$idx.try_lock() {
                         if guard.capabilities().contains(op.required_caps()) {
-                            let ctx = unsafe { self.context_table.ctx_mut(handle) };
+                            let ctx = unsafe { &mut *self.context_table.ctx_mut(handle) };
                             guard.blocking_hash_init(op, ctx)?;
                             unsafe {
                                 self.context_table.set_driver_idx(handle, $idx);
@@ -335,7 +330,7 @@ macro_rules! impl_crypto_runner {
 
             fn try_context_update(&self, handle: ContextHandle, op: Algorithm, data: &[u8]) -> Result<(), CryptoError> {
                 let driver_idx = unsafe { self.context_table.driver_idx(handle) };
-                let ctx = unsafe { self.context_table.ctx_mut(handle) };
+                let ctx = unsafe { &mut *self.context_table.ctx_mut(handle) };
 
                 $({
                     if driver_idx == $idx {
@@ -350,7 +345,7 @@ macro_rules! impl_crypto_runner {
 
             fn try_context_finalize(&self, handle: ContextHandle, op: Algorithm, out: &mut [u8]) -> Result<(), CryptoError> {
                 let driver_idx = unsafe { self.context_table.driver_idx(handle) };
-                let ctx = unsafe { self.context_table.ctx_mut(handle) };
+                let ctx = unsafe { &mut *self.context_table.ctx_mut(handle) };
 
                 $({
                     if driver_idx == $idx {
