@@ -156,6 +156,12 @@ pub trait BlockingCryptoDriver {
     ///
     /// The driver should zero/reset its internal hash state into `ctx`.
     fn blocking_sha256_init(&mut self, ctx: &mut Sha256Context) -> Result<(), CryptoError>;
+
+    /// Update a SHA-256 streaming context with more data.
+    fn blocking_sha256_update(&mut self, ctx: &mut Sha256Context, data: &[u8]) -> Result<(), CryptoError>;
+
+    /// Finalize a SHA-256 streaming context and write the digest.
+    fn blocking_sha256_finalize(&mut self, ctx: &mut Sha256Context, out: &mut [u8; 32]) -> Result<(), CryptoError>;
 }
 
 /// Asynchronous cryptographic hardware driver.
@@ -381,17 +387,4 @@ pub trait CryptoDriver: BlockingCryptoDriver {
         signature: &'a [u8],
     ) -> impl Future<Output = Result<(), CryptoError>> + 'a;
 
-    /// Update a SHA-256 streaming context with more data.
-    fn sha256_update<'a>(
-        &'a mut self,
-        ctx: &'a mut Sha256Context,
-        data: &'a [u8],
-    ) -> impl Future<Output = Result<(), CryptoError>> + 'a;
-
-    /// Finalize a SHA-256 streaming context and write the digest.
-    fn sha256_finalize<'a>(
-        &'a mut self,
-        ctx: &'a mut Sha256Context,
-        out: &'a mut [u8; 32],
-    ) -> impl Future<Output = Result<(), CryptoError>> + 'a;
 }

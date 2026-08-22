@@ -262,6 +262,15 @@ impl BlockingCryptoDriver for MockDriver {
         ctx.0.fill(0);
         Ok(())
     }
+
+    fn blocking_sha256_update(&mut self, _ctx: &mut Sha256Context, _data: &[u8]) -> Result<(), CryptoError> {
+        Ok(())
+    }
+
+    fn blocking_sha256_finalize(&mut self, _ctx: &mut Sha256Context, out: &mut [u8; 32]) -> Result<(), CryptoError> {
+        out.fill(0x0A);
+        Ok(())
+    }
 }
 
 impl CryptoDriver for MockDriver {
@@ -583,22 +592,6 @@ impl CryptoDriver for MockDriver {
         Ok(())
     }
 
-    async fn sha256_update<'a>(
-        &'a mut self,
-        _ctx: &'a mut Sha256Context,
-        _data: &'a [u8],
-    ) -> Result<(), CryptoError> {
-        Ok(())
-    }
-
-    async fn sha256_finalize<'a>(
-        &'a mut self,
-        _ctx: &'a mut Sha256Context,
-        out: &'a mut [u8; 32],
-    ) -> Result<(), CryptoError> {
-        out.fill(0x0A);
-        Ok(())
-    }
 }
 
 #[cfg(test)]
@@ -645,10 +638,10 @@ mod tests {
         let server = runner.server();
 
         let ctx = server.sha256_init().unwrap();
-        server.sha256_update(ctx, b"hello").await.unwrap();
-        server.sha256_update(ctx, b" world").await.unwrap();
+        server.sha256_update(ctx, b"hello").unwrap();
+        server.sha256_update(ctx, b" world").unwrap();
         let mut out = [0u8; 32];
-        server.sha256_finalize(ctx, &mut out).await.unwrap();
+        server.sha256_finalize(ctx, &mut out).unwrap();
         assert_eq!(out, [0x0A; 32]);
     }
 }

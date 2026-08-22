@@ -107,14 +107,7 @@ async fn driver_worker<D: CryptoDriver, const T: usize>(
             if op_table.is_pending(handle) {
                 let kind = unsafe { op_table.kind(handle) };
 
-                // Streaming ops must be handled by the driver that owns the context.
-                if kind.is_streaming() {
-                    let ctx_handle = kind.ctx_handle();
-                    let bound_driver = unsafe { context_table.driver_idx(ctx_handle) };
-                    if bound_driver != driver_idx {
-                        continue;
-                    }
-                } else if !driver_caps.contains(kind.required_caps()) {
+                if !driver_caps.contains(kind.required_caps()) {
                     continue;
                 }
 
@@ -122,60 +115,51 @@ async fn driver_worker<D: CryptoDriver, const T: usize>(
                     let mut guard = driver.lock().await;
                     let kind = unsafe { op_table.kind(handle) };
 
-                    let result = if kind.is_streaming() {
-                        // Streaming ops are executed directly by the worker
-                        // so the context can be borrowed across the await point.
-                        execute_streaming_op(&mut *guard, kind, context_table, op_table, handle)
-                            .await
-                    } else {
-                        // Pin the execute future on the stack.
-                        let exec_fut = unsafe { kind.execute(&mut *guard) };
-                        let mut exec_fut = core::pin::pin!(exec_fut);
+                    // Pin the execute future on the stack.
+                    let exec_fut = unsafe { kind.execute(&mut *guard) };
+                    let mut exec_fut = core::pin::pin!(exec_fut);
 
-                        // Manual polling loop: check cancellation before every
-                        // poll and before completing.
-                        let result = core::future::poll_fn(|cx| {
-                            loop {
-                                // 1. Check cancellation before polling.
-                                if op_table.is_cancelled(handle) {
-                                    return Poll::Ready(kind.cancelled_output());
+                    // Manual polling loop: check cancellation before every
+                    // poll and before completing.
+                    let result = core::future::poll_fn(|cx| {
+                        loop {
+                            // 1. Check cancellation before polling.
+                            if op_table.is_cancelled(handle) {
+                                return Poll::Ready(kind.cancelled_output());
+                            }
+
+                            // 2. Poll the driver future.
+                            match exec_fut.as_mut().poll(cx) {
+                                Poll::Pending => {
+                                    // Register our waker so cancel_op can wake us.
+                                    op_table.register_waker(handle, cx.waker());
+
+                                    // Anti-torn-read: re-check cancellation
+                                    // after registering the waker.
+                                    if op_table.is_cancelled(handle) {
+                                        continue;
+                                    }
+                                    return Poll::Pending;
                                 }
-
-                                // 2. Poll the driver future.
-                                match exec_fut.as_mut().poll(cx) {
-                                    Poll::Pending => {
-                                        // Register our waker so cancel_op can wake us.
-                                        op_table.register_waker(handle, cx.waker());
-
-                                        // Anti-torn-read: re-check cancellation
-                                        // after registering the waker.
-                                        if op_table.is_cancelled(handle) {
-                                            continue;
-                                        }
-                                        return Poll::Pending;
+                                Poll::Ready(result) => {
+                                    // 3. Operation completed in hardware.
+                                    // On multi-core the caller may have set
+                                    // CANCELLED while we were inside poll().
+                                    // Discard the result if so.
+                                    if op_table.is_cancelled(handle) {
+                                        return Poll::Ready(kind.cancelled_output());
                                     }
-                                    Poll::Ready(result) => {
-                                        // 3. Operation completed in hardware.
-                                        // On multi-core the caller may have set
-                                        // CANCELLED while we were inside poll().
-                                        // Discard the result if so.
-                                        if op_table.is_cancelled(handle) {
-                                            return Poll::Ready(kind.cancelled_output());
-                                        }
-                                        return Poll::Ready(result);
-                                    }
+                                    return Poll::Ready(result);
                                 }
                             }
-                        })
-                        .await;
+                        }
+                    })
+                    .await;
 
-                        // Explicitly drop the driver future before completing so
-                        // its Drop impl can abort DMA / clean hardware state
-                        // before the caller is woken and potentially frees buffers.
-                        drop(exec_fut);
-
-                        result
-                    };
+                    // Explicitly drop the driver future before completing so
+                    // its Drop impl can abort DMA / clean hardware state
+                    // before the caller is woken and potentially frees buffers.
+                    drop(exec_fut);
 
                     op_table.complete(handle, result);
                     found = true;
@@ -190,102 +174,6 @@ async fn driver_worker<D: CryptoDriver, const T: usize>(
 
         // 3. Nothing claimable — sleep until externally woken
         yield_now().await;
-    }
-}
-
-/// Execute a streaming operation directly in the worker.
-///
-/// This is inlined so the context can be borrowed across the await point
-/// without storing it in `OpKind`.
-async fn execute_streaming_op<D: CryptoDriver, const T: usize>(
-    driver: &mut D,
-    kind: &crate::queue::OpKind,
-    context_table: &ContextTable<MAX_CONTEXTS>,
-    op_table: &OpTable<T>,
-    handle: OpHandle,
-) -> OpOutput {
-    match kind {
-        crate::queue::OpKind::Sha256Update { ctx_handle, data } => {
-            // Transition context to BUSY
-            if !context_table.set_busy(*ctx_handle) {
-                return OpOutput::Unit(Err(CryptoError::HardwareError));
-            }
-
-            let ctx = unsafe { context_table.ctx_mut(*ctx_handle) };
-            let exec_fut = driver.sha256_update(ctx, unsafe { &**data });
-            let mut exec_fut = core::pin::pin!(exec_fut);
-
-            let result = core::future::poll_fn(|cx| {
-                loop {
-                    if op_table.is_cancelled(handle) {
-                        context_table.return_to_init(*ctx_handle);
-                        return Poll::Ready(Err(CryptoError::HardwareError));
-                    }
-                    match exec_fut.as_mut().poll(cx) {
-                        Poll::Pending => {
-                            op_table.register_waker(handle, cx.waker());
-                            if op_table.is_cancelled(handle) {
-                                continue;
-                            }
-                            return Poll::Pending;
-                        }
-                        Poll::Ready(result) => {
-                            if op_table.is_cancelled(handle) {
-                                context_table.return_to_init(*ctx_handle);
-                                return Poll::Ready(Err(CryptoError::HardwareError));
-                            }
-                            return Poll::Ready(result);
-                        }
-                    }
-                }
-            })
-            .await;
-
-            drop(exec_fut);
-            context_table.return_to_init(*ctx_handle);
-            OpOutput::Unit(result)
-        }
-        crate::queue::OpKind::Sha256Finalize { ctx_handle, out } => {
-            // Transition context to BUSY
-            if !context_table.set_busy(*ctx_handle) {
-                return OpOutput::Unit(Err(CryptoError::HardwareError));
-            }
-
-            let ctx = unsafe { context_table.ctx_mut(*ctx_handle) };
-            let exec_fut = driver.sha256_finalize(ctx, unsafe { &mut **out });
-            let mut exec_fut = core::pin::pin!(exec_fut);
-
-            let result = core::future::poll_fn(|cx| {
-                loop {
-                    if op_table.is_cancelled(handle) {
-                        context_table.free(*ctx_handle);
-                        return Poll::Ready(Err(CryptoError::HardwareError));
-                    }
-                    match exec_fut.as_mut().poll(cx) {
-                        Poll::Pending => {
-                            op_table.register_waker(handle, cx.waker());
-                            if op_table.is_cancelled(handle) {
-                                continue;
-                            }
-                            return Poll::Pending;
-                        }
-                        Poll::Ready(result) => {
-                            if op_table.is_cancelled(handle) {
-                                context_table.free(*ctx_handle);
-                                return Poll::Ready(Err(CryptoError::HardwareError));
-                            }
-                            return Poll::Ready(result);
-                        }
-                    }
-                }
-            })
-            .await;
-
-            drop(exec_fut);
-            context_table.free(*ctx_handle);
-            OpOutput::Unit(result)
-        }
-        _ => unreachable!(),
     }
 }
 
@@ -333,6 +221,8 @@ pub(crate) trait RunnerBackend {
     ) -> Option<Result<usize, CryptoError>>;
 
     fn try_sha256_init(&self) -> Result<ContextHandle, CryptoError>;
+    fn try_sha256_update(&self, handle: ContextHandle, data: &[u8]) -> Result<(), CryptoError>;
+    fn try_sha256_finalize(&self, handle: ContextHandle, out: &mut [u8; 32]) -> Result<(), CryptoError>;
 
     fn schedule(&self, kind: crate::queue::OpKind) -> Result<OpHandle, CryptoError>;
 
@@ -433,14 +323,42 @@ macro_rules! impl_crypto_runner {
                 Err(CryptoError::HardwareError)
             }
 
+            fn try_sha256_update(&self, handle: ContextHandle, data: &[u8]) -> Result<(), CryptoError> {
+                let driver_idx = unsafe { self.context_table.driver_idx(handle) };
+                let ctx = unsafe { self.context_table.ctx_mut(handle) };
+
+                $({
+                    if driver_idx == $idx {
+                        if let Ok(mut guard) = self.drivers.$idx.try_lock() {
+                            return guard.blocking_sha256_update(ctx, data);
+                        }
+                    }
+                })+
+
+                Err(CryptoError::HardwareError)
+            }
+
+            fn try_sha256_finalize(&self, handle: ContextHandle, out: &mut [u8; 32]) -> Result<(), CryptoError> {
+                let driver_idx = unsafe { self.context_table.driver_idx(handle) };
+                let ctx = unsafe { self.context_table.ctx_mut(handle) };
+
+                $({
+                    if driver_idx == $idx {
+                        if let Ok(mut guard) = self.drivers.$idx.try_lock() {
+                            let result = guard.blocking_sha256_finalize(ctx, out);
+                            self.context_table.free(handle);
+                            return result;
+                        }
+                    }
+                })+
+
+                self.context_table.free(handle);
+                Err(CryptoError::HardwareError)
+            }
+
             fn schedule(&self, kind: crate::queue::OpKind) -> Result<OpHandle, CryptoError> {
                 let handle = self.op_table.alloc(kind).ok_or(CryptoError::HardwareError)?;
-                if kind.is_streaming() {
-                    let driver_idx = unsafe { self.context_table.driver_idx(kind.ctx_handle()) };
-                    self.driver_slots[driver_idx].waker.wake();
-                } else {
-                    wake_capable(kind.required_caps(), &self.driver_slots, self.num_drivers);
-                }
+                wake_capable(kind.required_caps(), &self.driver_slots, self.num_drivers);
                 Ok(handle)
             }
 

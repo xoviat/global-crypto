@@ -174,36 +174,26 @@ impl CryptoServer<'_> {
     async_op_ctor!(rsa_verify_pss_sha512, RsaVerifyPssSha512Future, [public_key: &'a [u8], digest: &'a [u8; 64], signature: &'a [u8]]);
 
     // ------------------------------------------------------------------
-    // Streaming SHA-256
+    // Blocking streaming SHA-256
     // ------------------------------------------------------------------
     pub fn sha256_init(&self) -> Result<crate::queue::ContextHandle, CryptoError> {
         self.backend.try_sha256_init()
     }
 
-    pub fn sha256_update<'a>(
-        &'a self,
+    pub fn sha256_update(
+        &self,
         ctx: crate::queue::ContextHandle,
-        data: &'a [u8],
-    ) -> Sha256UpdateFuture<'a> {
-        Sha256UpdateFuture {
-            backend: self.backend,
-            ctx_handle: ctx,
-            data,
-            handle: None,
-        }
+        data: &[u8],
+    ) -> Result<(), CryptoError> {
+        self.backend.try_sha256_update(ctx, data)
     }
 
-    pub fn sha256_finalize<'a>(
-        &'a self,
+    pub fn sha256_finalize(
+        &self,
         ctx: crate::queue::ContextHandle,
-        out: &'a mut [u8; 32],
-    ) -> Sha256FinalizeFuture<'a> {
-        Sha256FinalizeFuture {
-            backend: self.backend,
-            ctx_handle: ctx,
-            out,
-            handle: None,
-        }
+        out: &mut [u8; 32],
+    ) -> Result<(), CryptoError> {
+        self.backend.try_sha256_finalize(ctx, out)
     }
 }
 
@@ -245,73 +235,4 @@ impl_async_size_op!(RsaSignPssSha256Future, RsaSignPssSha256, [private_key: &'a 
 impl_async_size_op!(RsaSignPssSha384Future, RsaSignPssSha384, [private_key: &'a [u8], digest: &'a [u8; 48], signature: &'a mut [u8]]);
 impl_async_size_op!(RsaSignPssSha512Future, RsaSignPssSha512, [private_key: &'a [u8], digest: &'a [u8; 64], signature: &'a mut [u8]]);
 
-// ------------------------------------------------------------------
-// Streaming SHA-256 futures (manual — field names differ from OpKind)
-// ------------------------------------------------------------------
-pub struct Sha256UpdateFuture<'a> {
-    backend: &'a dyn RunnerBackend,
-    ctx_handle: crate::queue::ContextHandle,
-    data: &'a [u8],
-    handle: Option<crate::queue::OpHandle>,
-}
 
-impl Future for Sha256UpdateFuture<'_> {
-    type Output = Result<(), CryptoError>;
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let this = &mut *self;
-        match this.handle {
-            None => {
-                let handle = this.backend.schedule(crate::queue::OpKind::Sha256Update {
-                    ctx_handle: this.ctx_handle,
-                    data: this.data,
-                })?;
-                this.handle = Some(handle);
-                Poll::Pending
-            }
-            Some(h) => this.backend.poll_op(h, cx).map(|o| o.into_unit()),
-        }
-    }
-}
-
-impl Drop for Sha256UpdateFuture<'_> {
-    fn drop(&mut self) {
-        if let Some(h) = self.handle {
-            let _ = self.backend.cancel_op(h);
-        }
-    }
-}
-
-pub struct Sha256FinalizeFuture<'a> {
-    backend: &'a dyn RunnerBackend,
-    ctx_handle: crate::queue::ContextHandle,
-    out: &'a mut [u8; 32],
-    handle: Option<crate::queue::OpHandle>,
-}
-
-impl Future for Sha256FinalizeFuture<'_> {
-    type Output = Result<(), CryptoError>;
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let this = &mut *self;
-        match this.handle {
-            None => {
-                let handle = this
-                    .backend
-                    .schedule(crate::queue::OpKind::Sha256Finalize {
-                        ctx_handle: this.ctx_handle,
-                        out: this.out,
-                    })?;
-                this.handle = Some(handle);
-                Poll::Pending
-            }
-            Some(h) => this.backend.poll_op(h, cx).map(|o| o.into_unit()),
-        }
-    }
-}
-
-impl Drop for Sha256FinalizeFuture<'_> {
-    fn drop(&mut self) {
-        if let Some(h) = self.handle {
-            let _ = self.backend.cancel_op(h);
-        }
-    }
-}

@@ -228,16 +228,6 @@ pub enum OpKind {
         digest: *const [u8; 64],
         signature: *const [u8],
     },
-    /// Streaming SHA-256 update.
-    Sha256Update {
-        ctx_handle: ContextHandle,
-        data: *const [u8],
-    },
-    /// Streaming SHA-256 finalize.
-    Sha256Finalize {
-        ctx_handle: ContextHandle,
-        out: *mut [u8; 32],
-    },
 }
 
 unsafe impl Sync for OpKind {}
@@ -258,7 +248,7 @@ impl OpKind {
             Self::AesCcm8_128Encrypt { .. } | Self::AesCcm8_128Decrypt { .. } => {
                 Capabilities::AES_128_CCM8
             }
-            Self::Sha256 { .. } | Self::Sha256Update { .. } | Self::Sha256Finalize { .. } => {
+            Self::Sha256 { .. } => {
                 Capabilities::SHA_256
             }
             Self::Sha384 { .. } => Capabilities::SHA_384,
@@ -301,26 +291,6 @@ impl OpKind {
             | Self::RsaSignPssSha384 { .. }
             | Self::RsaSignPssSha512 { .. } => OpOutput::Size(Err(CryptoError::HardwareError)),
             _ => OpOutput::Unit(Err(CryptoError::HardwareError)),
-        }
-    }
-
-    /// True if this operation requires a bound streaming context.
-    pub fn is_streaming(&self) -> bool {
-        matches!(
-            self,
-            Self::Sha256Update { .. } | Self::Sha256Finalize { .. }
-        )
-    }
-
-    /// Extract the context handle from a streaming operation.
-    ///
-    /// # Panics
-    /// Panics if `is_streaming()` is false.
-    pub fn ctx_handle(&self) -> ContextHandle {
-        match self {
-            Self::Sha256Update { ctx_handle, .. } => *ctx_handle,
-            Self::Sha256Finalize { ctx_handle, .. } => *ctx_handle,
-            _ => panic!("not a streaming operation"),
         }
     }
 
@@ -723,9 +693,7 @@ impl OpKind {
                     })
                     .await,
             ),
-            Self::Sha256Update { .. } | Self::Sha256Finalize { .. } => {
-                panic!("streaming ops must be executed by the worker directly")
-            }
+
         }
     }
 }
