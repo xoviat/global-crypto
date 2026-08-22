@@ -197,11 +197,11 @@ async fn driver_worker<D: CryptoDriver, const T: usize>(
 ///
 /// This is inlined so the context can be borrowed across the await point
 /// without storing it in `OpKind`.
-async fn execute_streaming_op<D: CryptoDriver>(
+async fn execute_streaming_op<D: CryptoDriver, const T: usize>(
     driver: &mut D,
     kind: &crate::queue::OpKind,
     context_table: &ContextTable<MAX_CONTEXTS>,
-    op_table: &OpTable<impl core::fmt::Debug>,
+    op_table: &OpTable<T>,
     handle: OpHandle,
 ) -> OpOutput {
     match kind {

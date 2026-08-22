@@ -10,8 +10,6 @@ pub use server::CryptoServer;
 use embassy_crypto_driver::{
     BlockingCryptoDriver, Capabilities, CryptoDriver, CryptoError, Sha256Context,
 };
-use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
-use embassy_sync::mutex::Mutex;
 
 pub struct MockDriver;
 

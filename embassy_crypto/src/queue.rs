@@ -1027,7 +1027,7 @@ impl<const N: usize> ContextTable<N> {
     /// Caller must have allocated the slot and not yet freed it.
     pub unsafe fn set_driver_idx(&self, handle: ContextHandle, idx: usize) {
         let slot = &self.slots[handle.idx];
-        (*slot.driver_idx.get()).write(idx);
+        unsafe { (*slot.driver_idx.get()).write(idx); }
     }
 
     /// Get the driver index that owns this context.
@@ -1036,7 +1036,7 @@ impl<const N: usize> ContextTable<N> {
     /// Caller must ensure the slot is in INIT or BUSY state.
     pub unsafe fn driver_idx(&self, handle: ContextHandle) -> usize {
         let slot = &self.slots[handle.idx];
-        *(*slot.driver_idx.get()).as_mut_ptr()
+        unsafe { *(*slot.driver_idx.get()).as_mut_ptr() }
     }
 
     /// Get a mutable reference to the context data.
@@ -1046,6 +1046,6 @@ impl<const N: usize> ContextTable<N> {
     /// other reference to this context exists concurrently.
     pub unsafe fn ctx_mut(&self, handle: ContextHandle) -> &mut Sha256Context {
         let slot = &self.slots[handle.idx];
-        &mut *(*slot.ctx.get()).as_mut_ptr()
+        unsafe { &mut *(*slot.ctx.get()).as_mut_ptr() }
     }
 }
