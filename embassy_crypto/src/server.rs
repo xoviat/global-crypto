@@ -234,5 +234,3 @@ impl_async_size_op!(RsaSignPkcs1v15Sha512Future, RsaSignPkcs1v15Sha512, [private
 impl_async_size_op!(RsaSignPssSha256Future, RsaSignPssSha256, [private_key: &'a [u8], digest: &'a [u8; 32], signature: &'a mut [u8]]);
 impl_async_size_op!(RsaSignPssSha384Future, RsaSignPssSha384, [private_key: &'a [u8], digest: &'a [u8; 48], signature: &'a mut [u8]]);
 impl_async_size_op!(RsaSignPssSha512Future, RsaSignPssSha512, [private_key: &'a [u8], digest: &'a [u8; 64], signature: &'a mut [u8]]);
-
-

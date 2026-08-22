@@ -80,8 +80,6 @@ async fn driver_worker<D: CryptoDriver, const T: usize>(
     driver: &Mutex<CriticalSectionRawMutex, D>,
     slot: &DriverSlot,
     op_table: &OpTable<T>,
-    context_table: &ContextTable<MAX_CONTEXTS>,
-    driver_idx: usize,
 ) -> ! {
     let driver_caps = driver.lock().await.capabilities();
 
@@ -222,7 +220,11 @@ pub(crate) trait RunnerBackend {
 
     fn try_sha256_init(&self) -> Result<ContextHandle, CryptoError>;
     fn try_sha256_update(&self, handle: ContextHandle, data: &[u8]) -> Result<(), CryptoError>;
-    fn try_sha256_finalize(&self, handle: ContextHandle, out: &mut [u8; 32]) -> Result<(), CryptoError>;
+    fn try_sha256_finalize(
+        &self,
+        handle: ContextHandle,
+        out: &mut [u8; 32],
+    ) -> Result<(), CryptoError>;
 
     fn schedule(&self, kind: crate::queue::OpKind) -> Result<OpHandle, CryptoError>;
 
@@ -258,7 +260,7 @@ macro_rules! impl_crypto_runner {
             #[allow(unreachable_code)]
             pub async fn run(&self) -> ! {
                 join_n!(
-                    $(driver_worker(&self.drivers.$idx, &self.driver_slots[$idx], &self.op_table, &self.context_table, $idx)),+
+                    $(driver_worker(&self.drivers.$idx, &self.driver_slots[$idx], &self.op_table)),+
                 ).await;
 
                 unreachable!();

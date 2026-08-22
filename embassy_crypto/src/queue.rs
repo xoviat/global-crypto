@@ -248,9 +248,7 @@ impl OpKind {
             Self::AesCcm8_128Encrypt { .. } | Self::AesCcm8_128Decrypt { .. } => {
                 Capabilities::AES_128_CCM8
             }
-            Self::Sha256 { .. } => {
-                Capabilities::SHA_256
-            }
+            Self::Sha256 { .. } => Capabilities::SHA_256,
             Self::Sha384 { .. } => Capabilities::SHA_384,
             Self::P256Keygen { .. } => Capabilities::P256_KEYGEN,
             Self::P256Ecdh { .. } => Capabilities::P256_ECDH,
@@ -693,7 +691,6 @@ impl OpKind {
                     })
                     .await,
             ),
-
         }
     }
 }

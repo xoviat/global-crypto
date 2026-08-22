@@ -263,11 +263,19 @@ impl BlockingCryptoDriver for MockDriver {
         Ok(())
     }
 
-    fn blocking_sha256_update(&mut self, _ctx: &mut Sha256Context, _data: &[u8]) -> Result<(), CryptoError> {
+    fn blocking_sha256_update(
+        &mut self,
+        _ctx: &mut Sha256Context,
+        _data: &[u8],
+    ) -> Result<(), CryptoError> {
         Ok(())
     }
 
-    fn blocking_sha256_finalize(&mut self, _ctx: &mut Sha256Context, out: &mut [u8; 32]) -> Result<(), CryptoError> {
+    fn blocking_sha256_finalize(
+        &mut self,
+        _ctx: &mut Sha256Context,
+        out: &mut [u8; 32],
+    ) -> Result<(), CryptoError> {
         out.fill(0x0A);
         Ok(())
     }
@@ -591,7 +599,6 @@ impl CryptoDriver for MockDriver {
     ) -> Result<(), CryptoError> {
         Ok(())
     }
-
 }
 
 #[cfg(test)]
