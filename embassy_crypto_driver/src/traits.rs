@@ -153,6 +153,27 @@ pub trait BlockingCryptoDriver {
     ) -> Result<(), CryptoError>;
 }
 
+/// Asynchronous cryptographic hardware driver.
+///
+/// # Safety contract for `no_alloc` async
+///
+/// Implementations must ensure that caller-provided buffers are not
+/// accessed by hardware (e.g. DMA) after the future returned by any
+/// method has been dropped. The recommended patterns are:
+///
+/// 1. **Copy in/out:** Copy caller data into driver-owned DMA buffers
+///    before the first yield point, and copy results back to caller
+///    buffers after the last yield point. The hardware never touches
+///    caller memory directly.
+///
+/// 2. **Single yield:** If the hardware operates directly on caller
+///    buffers, the future must return `Ready` immediately after the
+///    hardware operation completes, without any additional yield points
+///    while the buffer is in use by the hardware.
+///
+/// Violating this contract can lead to use-after-free or data corruption,
+/// especially on multi-core systems where the caller may have set
+/// CANCELLED while the worker was inside poll().
 pub trait CryptoDriver: BlockingCryptoDriver {
     fn aes_gcm_128_encrypt<'a>(
         &'a mut self,

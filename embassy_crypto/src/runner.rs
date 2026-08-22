@@ -8,7 +8,6 @@ use embassy_sync::mutex::Mutex;
 use embassy_sync::waitqueue::AtomicWaker;
 
 use embassy_crypto_driver::{BlockingCryptoDriver, Capabilities, CryptoDriver, CryptoError};
-use embassy_futures::select::{Either, select};
 
 use crate::queue::{OpHandle, OpOutput, OpTable};
 
@@ -112,20 +111,49 @@ async fn driver_worker<D: CryptoDriver, const T: usize>(
                     let exec_fut = unsafe { kind.execute(&mut *guard) };
                     let mut exec_fut = core::pin::pin!(exec_fut);
 
-                    // Future that resolves when this op is cancelled.
-                    let cancel_fut = core::future::poll_fn(|cx| {
-                        if op_table.is_cancelled(handle) {
-                            Poll::Ready(())
-                        } else {
-                            op_table.register_waker(handle, cx.waker());
-                            Poll::Pending
-                        }
-                    });
+                    // Manual polling loop: check cancellation before every
+                    // poll and before completing.  This closes the race where
+                    // `embassy_futures::select` would return `First(result)`
+                    // even though the caller has already dropped its future.
+                    let result = core::future::poll_fn(|cx| {
+                        loop {
+                            // 1. Check cancellation before polling.
+                            if op_table.is_cancelled(handle) {
+                                return Poll::Ready(kind.cancelled_output());
+                            }
 
-                    let result = match select(exec_fut.as_mut(), cancel_fut).await {
-                        Either::First(result) => result,
-                        Either::Second(_) => kind.cancelled_output(),
-                    };
+                            // 2. Poll the driver future.
+                            match exec_fut.as_mut().poll(cx) {
+                                Poll::Pending => {
+                                    // Register our waker so cancel_op can wake us.
+                                    op_table.register_waker(handle, cx.waker());
+
+                                    // Anti-torn-read: re-check cancellation
+                                    // after registering the waker.
+                                    if op_table.is_cancelled(handle) {
+                                        continue;
+                                    }
+                                    return Poll::Pending;
+                                }
+                                Poll::Ready(result) => {
+                                    // 3. Operation completed in hardware.
+                                    // On multi-core the caller may have set
+                                    // CANCELLED while we were inside poll().
+                                    // Discard the result if so.
+                                    if op_table.is_cancelled(handle) {
+                                        return Poll::Ready(kind.cancelled_output());
+                                    }
+                                    return Poll::Ready(result);
+                                }
+                            }
+                        }
+                    })
+                    .await;
+
+                    // Explicitly drop the driver future before completing so
+                    // its Drop impl can abort DMA / clean hardware state
+                    // before the caller is woken and potentially frees buffers.
+                    drop(exec_fut);
 
                     op_table.complete(handle, result);
                     found = true;
