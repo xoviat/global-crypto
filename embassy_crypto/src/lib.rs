@@ -615,8 +615,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_single_driver() {
-        let runner: runner::CryptoRunner<(Mutex<CriticalSectionRawMutex, MockDriver>,), 16> =
-            runner::CryptoRunner::new((MockDriver,));
+        let runner = runner::CryptoRunner::<(Mutex<CriticalSectionRawMutex, MockDriver>,), 16>::new(
+            (MockDriver,),
+        );
         let server = runner.server();
 
         let mut buf = [0u8; 32];
@@ -630,13 +631,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_two_drivers() {
-        let runner: runner::CryptoRunner<
+        let runner = runner::CryptoRunner::<
             (
                 Mutex<CriticalSectionRawMutex, MockDriver>,
                 Mutex<CriticalSectionRawMutex, MockDriver>,
             ),
             16,
-        > = runner::CryptoRunner::new((MockDriver, MockDriver));
+        >::new((MockDriver, MockDriver));
         let server = runner.server();
 
         let mut out = [0u8; 32];
@@ -646,8 +647,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_streaming_sha256() {
-        let runner: runner::CryptoRunner<(Mutex<CriticalSectionRawMutex, MockDriver>,), 16> =
-            runner::CryptoRunner::new((MockDriver,));
+        let runner = runner::CryptoRunner::<(Mutex<CriticalSectionRawMutex, MockDriver>,), 16>::new(
+            (MockDriver,),
+        );
         let server = runner.server();
 
         let ctx = server.sha256_init().unwrap();
