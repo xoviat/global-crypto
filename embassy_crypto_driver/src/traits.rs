@@ -3,199 +3,199 @@ use core::future::Future;
 
 pub trait BlockingCryptoDriver {
     fn capabilities(&self) -> Capabilities;
-    fn blocking_rng_fill(&mut self, dest: &mut [u8]) -> Result<(), CryptoError> {
+    fn blocking_rng_fill(&mut self, _dest: &mut [u8]) -> Result<(), CryptoError> {
         Err(CryptoError::Unsupported)
     }
     fn blocking_aes_128_ecb_encrypt(
         &mut self,
-        block: &mut [u8; 16],
-        key: &[u8; 16],
+        _block: &mut [u8; 16],
+        _key: &[u8; 16],
     ) -> Result<(), CryptoError> {
         Err(CryptoError::Unsupported)
     }
     fn blocking_aes_128_ecb_decrypt(
         &mut self,
-        block: &mut [u8; 16],
-        key: &[u8; 16],
+        _block: &mut [u8; 16],
+        _key: &[u8; 16],
     ) -> Result<(), CryptoError> {
         Err(CryptoError::Unsupported)
     }
     fn blocking_aes_128_cmac(
         &mut self,
-        key: &[u8; 16],
-        data: &[u8],
-        out: &mut [u8; 16],
+        _key: &[u8; 16],
+        _data: &[u8],
+        _out: &mut [u8; 16],
     ) -> Result<(), CryptoError> {
         Err(CryptoError::Unsupported)
     }
     fn blocking_aes_ccm_128_encrypt(
         &mut self,
-        key: &[u8; 16],
-        nonce: &[u8],
-        aad: &[u8],
-        plaintext: &[u8],
-        ciphertext: &mut [u8],
-        tag: &mut [u8; 16],
+        _key: &[u8; 16],
+        _nonce: &[u8],
+        _aad: &[u8],
+        _plaintext: &[u8],
+        _ciphertext: &mut [u8],
+        _tag: &mut [u8; 16],
     ) -> Result<(), CryptoError> {
         Err(CryptoError::Unsupported)
     }
     fn blocking_aes_ccm_128_decrypt(
         &mut self,
-        key: &[u8; 16],
-        nonce: &[u8],
-        aad: &[u8],
-        ciphertext: &[u8],
-        plaintext: &mut [u8],
-        tag: &[u8; 16],
+        _key: &[u8; 16],
+        _nonce: &[u8],
+        _aad: &[u8],
+        _ciphertext: &[u8],
+        _plaintext: &mut [u8],
+        _tag: &[u8; 16],
     ) -> Result<(), CryptoError> {
         Err(CryptoError::Unsupported)
     }
     fn blocking_aes_ccm8_128_encrypt(
         &mut self,
-        key: &[u8; 16],
-        nonce: &[u8],
-        aad: &[u8],
-        plaintext: &[u8],
-        ciphertext: &mut [u8],
-        tag: &mut [u8; 8],
+        _key: &[u8; 16],
+        _nonce: &[u8],
+        _aad: &[u8],
+        _plaintext: &[u8],
+        _ciphertext: &mut [u8],
+        _tag: &mut [u8; 8],
     ) -> Result<(), CryptoError> {
         Err(CryptoError::Unsupported)
     }
     fn blocking_aes_ccm8_128_decrypt(
         &mut self,
-        key: &[u8; 16],
-        nonce: &[u8],
-        aad: &[u8],
-        ciphertext: &[u8],
-        plaintext: &mut [u8],
-        tag: &[u8; 8],
+        _key: &[u8; 16],
+        _nonce: &[u8],
+        _aad: &[u8],
+        _ciphertext: &[u8],
+        _plaintext: &mut [u8],
+        _tag: &[u8; 8],
     ) -> Result<(), CryptoError> {
         Err(CryptoError::Unsupported)
     }
     fn blocking_p384_keygen(
         &mut self,
-        secret_key: &mut [u8; 48],
-        public_key: &mut [u8; 96],
+        _secret_key: &mut [u8; 48],
+        _public_key: &mut [u8; 96],
     ) -> Result<(), CryptoError> {
         Err(CryptoError::Unsupported)
     }
     fn blocking_p384_ecdh(
         &mut self,
-        secret_key: &[u8; 48],
-        public_key: &[u8; 96],
-        shared_secret: &mut [u8; 48],
+        _secret_key: &[u8; 48],
+        _public_key: &[u8; 96],
+        _shared_secret: &mut [u8; 48],
     ) -> Result<(), CryptoError> {
         Err(CryptoError::Unsupported)
     }
     fn blocking_p384_ecdsa_sign(
         &mut self,
-        secret_key: &[u8; 48],
-        digest: &[u8; 48],
-        signature: &mut [u8; 96],
+        _secret_key: &[u8; 48],
+        _digest: &[u8; 48],
+        _signature: &mut [u8; 96],
     ) -> Result<(), CryptoError> {
         Err(CryptoError::Unsupported)
     }
     fn blocking_p384_ecdsa_verify(
         &mut self,
-        public_key: &[u8; 96],
-        digest: &[u8; 48],
-        signature: &[u8; 96],
+        _public_key: &[u8; 96],
+        _digest: &[u8; 48],
+        _signature: &[u8; 96],
     ) -> Result<(), CryptoError> {
         Err(CryptoError::Unsupported)
     }
     fn blocking_rsa_sign_pkcs1v15_sha256(
         &mut self,
-        private_key: &[u8],
-        digest: &[u8; 32],
-        signature: &mut [u8],
+        _private_key: &[u8],
+        _digest: &[u8; 32],
+        _signature: &mut [u8],
     ) -> Result<usize, CryptoError> {
         Err(CryptoError::Unsupported)
     }
     fn blocking_rsa_verify_pkcs1v15_sha256(
         &mut self,
-        public_key: &[u8],
-        digest: &[u8; 32],
-        signature: &[u8],
+        _public_key: &[u8],
+        _digest: &[u8; 32],
+        _signature: &[u8],
     ) -> Result<(), CryptoError> {
         Err(CryptoError::Unsupported)
     }
     fn blocking_rsa_sign_pkcs1v15_sha384(
         &mut self,
-        private_key: &[u8],
-        digest: &[u8; 48],
-        signature: &mut [u8],
+        _private_key: &[u8],
+        _digest: &[u8; 48],
+        _signature: &mut [u8],
     ) -> Result<usize, CryptoError> {
         Err(CryptoError::Unsupported)
     }
     fn blocking_rsa_verify_pkcs1v15_sha384(
         &mut self,
-        public_key: &[u8],
-        digest: &[u8; 48],
-        signature: &[u8],
+        _public_key: &[u8],
+        _digest: &[u8; 48],
+        _signature: &[u8],
     ) -> Result<(), CryptoError> {
         Err(CryptoError::Unsupported)
     }
     fn blocking_rsa_sign_pkcs1v15_sha512(
         &mut self,
-        private_key: &[u8],
-        digest: &[u8; 64],
-        signature: &mut [u8],
+        _private_key: &[u8],
+        _digest: &[u8; 64],
+        _signature: &mut [u8],
     ) -> Result<usize, CryptoError> {
         Err(CryptoError::Unsupported)
     }
     fn blocking_rsa_verify_pkcs1v15_sha512(
         &mut self,
-        public_key: &[u8],
-        digest: &[u8; 64],
-        signature: &[u8],
+        _public_key: &[u8],
+        _digest: &[u8; 64],
+        _signature: &[u8],
     ) -> Result<(), CryptoError> {
         Err(CryptoError::Unsupported)
     }
     fn blocking_rsa_sign_pss_sha256(
         &mut self,
-        private_key: &[u8],
-        digest: &[u8; 32],
-        signature: &mut [u8],
+        _private_key: &[u8],
+        _digest: &[u8; 32],
+        _signature: &mut [u8],
     ) -> Result<usize, CryptoError> {
         Err(CryptoError::Unsupported)
     }
     fn blocking_rsa_verify_pss_sha256(
         &mut self,
-        public_key: &[u8],
-        digest: &[u8; 32],
-        signature: &[u8],
+        _public_key: &[u8],
+        _digest: &[u8; 32],
+        _signature: &[u8],
     ) -> Result<(), CryptoError> {
         Err(CryptoError::Unsupported)
     }
     fn blocking_rsa_sign_pss_sha384(
         &mut self,
-        private_key: &[u8],
-        digest: &[u8; 48],
-        signature: &mut [u8],
+        _private_key: &[u8],
+        _digest: &[u8; 48],
+        _signature: &mut [u8],
     ) -> Result<usize, CryptoError> {
         Err(CryptoError::Unsupported)
     }
     fn blocking_rsa_verify_pss_sha384(
         &mut self,
-        public_key: &[u8],
-        digest: &[u8; 48],
-        signature: &[u8],
+        _public_key: &[u8],
+        _digest: &[u8; 48],
+        _signature: &[u8],
     ) -> Result<(), CryptoError> {
         Err(CryptoError::Unsupported)
     }
     fn blocking_rsa_sign_pss_sha512(
         &mut self,
-        private_key: &[u8],
-        digest: &[u8; 64],
-        signature: &mut [u8],
+        _private_key: &[u8],
+        _digest: &[u8; 64],
+        _signature: &mut [u8],
     ) -> Result<usize, CryptoError> {
         Err(CryptoError::Unsupported)
     }
     fn blocking_rsa_verify_pss_sha512(
         &mut self,
-        public_key: &[u8],
-        digest: &[u8; 64],
-        signature: &[u8],
+        _public_key: &[u8],
+        _digest: &[u8; 64],
+        _signature: &[u8],
     ) -> Result<(), CryptoError> {
         Err(CryptoError::Unsupported)
     }
@@ -203,15 +203,15 @@ pub trait BlockingCryptoDriver {
     /// Initialize a SHA-256 streaming context.
     ///
     /// The driver should zero/reset its internal hash state into `ctx`.
-    fn blocking_sha256_init(&mut self, ctx: &mut Sha256Context) -> Result<(), CryptoError> {
+    fn blocking_sha256_init(&mut self, _ctx: &mut Sha256Context) -> Result<(), CryptoError> {
         Err(CryptoError::Unsupported)
     }
 
     /// Update a SHA-256 streaming context with more data.
     fn blocking_sha256_update(
         &mut self,
-        ctx: &mut Sha256Context,
-        data: &[u8],
+        _ctx: &mut Sha256Context,
+        _data: &[u8],
     ) -> Result<(), CryptoError> {
         Err(CryptoError::Unsupported)
     }
@@ -219,8 +219,8 @@ pub trait BlockingCryptoDriver {
     /// Finalize a SHA-256 streaming context and write the digest.
     fn blocking_sha256_finalize(
         &mut self,
-        ctx: &mut Sha256Context,
-        out: &mut [u8; 32],
+        _ctx: &mut Sha256Context,
+        _out: &mut [u8; 32],
     ) -> Result<(), CryptoError> {
         Err(CryptoError::Unsupported)
     }
@@ -250,261 +250,261 @@ pub trait BlockingCryptoDriver {
 pub trait CryptoDriver: BlockingCryptoDriver {
     fn aes_gcm_128_encrypt<'a>(
         &'a mut self,
-        key: &'a [u8; 16],
-        nonce: &'a [u8],
-        aad: &'a [u8],
-        plaintext: &'a [u8],
-        ciphertext: &'a mut [u8],
-        tag: &'a mut [u8; 16],
+        _key: &'a [u8; 16],
+        _nonce: &'a [u8],
+        _aad: &'a [u8],
+        _plaintext: &'a [u8],
+        _ciphertext: &'a mut [u8],
+        _tag: &'a mut [u8; 16],
     ) -> impl Future<Output = Result<(), CryptoError>> + 'a {
         core::future::ready(Err(CryptoError::Unsupported))
     }
     fn aes_gcm_128_decrypt<'a>(
         &'a mut self,
-        key: &'a [u8; 16],
-        nonce: &'a [u8],
-        aad: &'a [u8],
-        ciphertext: &'a [u8],
-        plaintext: &'a mut [u8],
-        tag: &'a [u8; 16],
+        _key: &'a [u8; 16],
+        _nonce: &'a [u8],
+        _aad: &'a [u8],
+        _ciphertext: &'a [u8],
+        _plaintext: &'a mut [u8],
+        _tag: &'a [u8; 16],
     ) -> impl Future<Output = Result<(), CryptoError>> + 'a {
         core::future::ready(Err(CryptoError::Unsupported))
     }
     fn aes_gcm_256_encrypt<'a>(
         &'a mut self,
-        key: &'a [u8; 32],
-        nonce: &'a [u8],
-        aad: &'a [u8],
-        plaintext: &'a [u8],
-        ciphertext: &'a mut [u8],
-        tag: &'a mut [u8; 16],
+        _key: &'a [u8; 32],
+        _nonce: &'a [u8],
+        _aad: &'a [u8],
+        _plaintext: &'a [u8],
+        _ciphertext: &'a mut [u8],
+        _tag: &'a mut [u8; 16],
     ) -> impl Future<Output = Result<(), CryptoError>> + 'a {
         core::future::ready(Err(CryptoError::Unsupported))
     }
     fn aes_gcm_256_decrypt<'a>(
         &'a mut self,
-        key: &'a [u8; 32],
-        nonce: &'a [u8],
-        aad: &'a [u8],
-        ciphertext: &'a [u8],
-        plaintext: &'a mut [u8],
-        tag: &'a [u8; 16],
+        _key: &'a [u8; 32],
+        _nonce: &'a [u8],
+        _aad: &'a [u8],
+        _ciphertext: &'a [u8],
+        _plaintext: &'a mut [u8],
+        _tag: &'a [u8; 16],
     ) -> impl Future<Output = Result<(), CryptoError>> + 'a {
         core::future::ready(Err(CryptoError::Unsupported))
     }
     fn aes_ccm_128_encrypt<'a>(
         &'a mut self,
-        key: &'a [u8; 16],
-        nonce: &'a [u8],
-        aad: &'a [u8],
-        plaintext: &'a [u8],
-        ciphertext: &'a mut [u8],
-        tag: &'a mut [u8; 16],
+        _key: &'a [u8; 16],
+        _nonce: &'a [u8],
+        _aad: &'a [u8],
+        _plaintext: &'a [u8],
+        _ciphertext: &'a mut [u8],
+        _tag: &'a mut [u8; 16],
     ) -> impl Future<Output = Result<(), CryptoError>> + 'a {
         core::future::ready(Err(CryptoError::Unsupported))
     }
     fn aes_ccm_128_decrypt<'a>(
         &'a mut self,
-        key: &'a [u8; 16],
-        nonce: &'a [u8],
-        aad: &'a [u8],
-        ciphertext: &'a [u8],
-        plaintext: &'a mut [u8],
-        tag: &'a [u8; 16],
+        _key: &'a [u8; 16],
+        _nonce: &'a [u8],
+        _aad: &'a [u8],
+        _ciphertext: &'a [u8],
+        _plaintext: &'a mut [u8],
+        _tag: &'a [u8; 16],
     ) -> impl Future<Output = Result<(), CryptoError>> + 'a {
         core::future::ready(Err(CryptoError::Unsupported))
     }
     fn aes_ccm8_128_encrypt<'a>(
         &'a mut self,
-        key: &'a [u8; 16],
-        nonce: &'a [u8],
-        aad: &'a [u8],
-        plaintext: &'a [u8],
-        ciphertext: &'a mut [u8],
-        tag: &'a mut [u8; 8],
+        _key: &'a [u8; 16],
+        _nonce: &'a [u8],
+        _aad: &'a [u8],
+        _plaintext: &'a [u8],
+        _ciphertext: &'a mut [u8],
+        _tag: &'a mut [u8; 8],
     ) -> impl Future<Output = Result<(), CryptoError>> + 'a {
         core::future::ready(Err(CryptoError::Unsupported))
     }
     fn aes_ccm8_128_decrypt<'a>(
         &'a mut self,
-        key: &'a [u8; 16],
-        nonce: &'a [u8],
-        aad: &'a [u8],
-        ciphertext: &'a [u8],
-        plaintext: &'a mut [u8],
-        tag: &'a [u8; 8],
+        _key: &'a [u8; 16],
+        _nonce: &'a [u8],
+        _aad: &'a [u8],
+        _ciphertext: &'a [u8],
+        _plaintext: &'a mut [u8],
+        _tag: &'a [u8; 8],
     ) -> impl Future<Output = Result<(), CryptoError>> + 'a {
         core::future::ready(Err(CryptoError::Unsupported))
     }
     fn sha_256<'a>(
         &'a mut self,
-        data: &'a [u8],
-        out: &'a mut [u8; 32],
+        _data: &'a [u8],
+        _out: &'a mut [u8; 32],
     ) -> impl Future<Output = Result<(), CryptoError>> + 'a {
         core::future::ready(Err(CryptoError::Unsupported))
     }
     fn sha_384<'a>(
         &'a mut self,
-        data: &'a [u8],
-        out: &'a mut [u8; 48],
+        _data: &'a [u8],
+        _out: &'a mut [u8; 48],
     ) -> impl Future<Output = Result<(), CryptoError>> + 'a {
         core::future::ready(Err(CryptoError::Unsupported))
     }
     fn p256_keygen<'a>(
         &'a mut self,
-        secret_key: &'a mut [u8; 32],
-        public_key: &'a mut [u8; 64],
+        _secret_key: &'a mut [u8; 32],
+        _public_key: &'a mut [u8; 64],
     ) -> impl Future<Output = Result<(), CryptoError>> + 'a {
         core::future::ready(Err(CryptoError::Unsupported))
     }
     fn p256_ecdh<'a>(
         &'a mut self,
-        secret_key: &'a [u8; 32],
-        public_key: &'a [u8; 64],
-        shared_secret: &'a mut [u8; 32],
+        _secret_key: &'a [u8; 32],
+        _public_key: &'a [u8; 64],
+        _shared_secret: &'a mut [u8; 32],
     ) -> impl Future<Output = Result<(), CryptoError>> + 'a {
         core::future::ready(Err(CryptoError::Unsupported))
     }
     fn p256_ecdsa_sign<'a>(
         &'a mut self,
-        secret_key: &'a [u8; 32],
-        digest: &'a [u8; 32],
-        signature: &'a mut [u8; 64],
+        _secret_key: &'a [u8; 32],
+        _digest: &'a [u8; 32],
+        _signature: &'a mut [u8; 64],
     ) -> impl Future<Output = Result<(), CryptoError>> + 'a {
         core::future::ready(Err(CryptoError::Unsupported))
     }
     fn p256_ecdsa_verify<'a>(
         &'a mut self,
-        public_key: &'a [u8; 64],
-        digest: &'a [u8; 32],
-        signature: &'a [u8; 64],
+        _public_key: &'a [u8; 64],
+        _digest: &'a [u8; 32],
+        _signature: &'a [u8; 64],
     ) -> impl Future<Output = Result<(), CryptoError>> + 'a {
         core::future::ready(Err(CryptoError::Unsupported))
     }
     fn p384_keygen<'a>(
         &'a mut self,
-        secret_key: &'a mut [u8; 48],
-        public_key: &'a mut [u8; 96],
+        _secret_key: &'a mut [u8; 48],
+        _public_key: &'a mut [u8; 96],
     ) -> impl Future<Output = Result<(), CryptoError>> + 'a {
         core::future::ready(Err(CryptoError::Unsupported))
     }
     fn p384_ecdh<'a>(
         &'a mut self,
-        secret_key: &'a [u8; 48],
-        public_key: &'a [u8; 96],
-        shared_secret: &'a mut [u8; 48],
+        _secret_key: &'a [u8; 48],
+        _public_key: &'a [u8; 96],
+        _shared_secret: &'a mut [u8; 48],
     ) -> impl Future<Output = Result<(), CryptoError>> + 'a {
         core::future::ready(Err(CryptoError::Unsupported))
     }
     fn p384_ecdsa_sign<'a>(
         &'a mut self,
-        secret_key: &'a [u8; 48],
-        digest: &'a [u8; 48],
-        signature: &'a mut [u8; 96],
+        _secret_key: &'a [u8; 48],
+        _digest: &'a [u8; 48],
+        _signature: &'a mut [u8; 96],
     ) -> impl Future<Output = Result<(), CryptoError>> + 'a {
         core::future::ready(Err(CryptoError::Unsupported))
     }
     fn p384_ecdsa_verify<'a>(
         &'a mut self,
-        public_key: &'a [u8; 96],
-        digest: &'a [u8; 48],
-        signature: &'a [u8; 96],
+        _public_key: &'a [u8; 96],
+        _digest: &'a [u8; 48],
+        _signature: &'a [u8; 96],
     ) -> impl Future<Output = Result<(), CryptoError>> + 'a {
         core::future::ready(Err(CryptoError::Unsupported))
     }
     fn rsa_sign_pkcs1v15_sha256<'a>(
         &'a mut self,
-        private_key: &'a [u8],
-        digest: &'a [u8; 32],
-        signature: &'a mut [u8],
+        _private_key: &'a [u8],
+        _digest: &'a [u8; 32],
+        _signature: &'a mut [u8],
     ) -> impl Future<Output = Result<usize, CryptoError>> + 'a {
         core::future::ready(Err(CryptoError::Unsupported))
     }
     fn rsa_verify_pkcs1v15_sha256<'a>(
         &'a mut self,
-        public_key: &'a [u8],
-        digest: &'a [u8; 32],
-        signature: &'a [u8],
+        _public_key: &'a [u8],
+        _digest: &'a [u8; 32],
+        _signature: &'a [u8],
     ) -> impl Future<Output = Result<(), CryptoError>> + 'a {
         core::future::ready(Err(CryptoError::Unsupported))
     }
     fn rsa_sign_pkcs1v15_sha384<'a>(
         &'a mut self,
-        private_key: &'a [u8],
-        digest: &'a [u8; 48],
-        signature: &'a mut [u8],
+        _private_key: &'a [u8],
+        _digest: &'a [u8; 48],
+        _signature: &'a mut [u8],
     ) -> impl Future<Output = Result<usize, CryptoError>> + 'a {
         core::future::ready(Err(CryptoError::Unsupported))
     }
     fn rsa_verify_pkcs1v15_sha384<'a>(
         &'a mut self,
-        public_key: &'a [u8],
-        digest: &'a [u8; 48],
-        signature: &'a [u8],
+        _public_key: &'a [u8],
+        _digest: &'a [u8; 48],
+        _signature: &'a [u8],
     ) -> impl Future<Output = Result<(), CryptoError>> + 'a {
         core::future::ready(Err(CryptoError::Unsupported))
     }
     fn rsa_sign_pkcs1v15_sha512<'a>(
         &'a mut self,
-        private_key: &'a [u8],
-        digest: &'a [u8; 64],
-        signature: &'a mut [u8],
+        _private_key: &'a [u8],
+        _digest: &'a [u8; 64],
+        _signature: &'a mut [u8],
     ) -> impl Future<Output = Result<usize, CryptoError>> + 'a {
         core::future::ready(Err(CryptoError::Unsupported))
     }
     fn rsa_verify_pkcs1v15_sha512<'a>(
         &'a mut self,
-        public_key: &'a [u8],
-        digest: &'a [u8; 64],
-        signature: &'a [u8],
+        _public_key: &'a [u8],
+        _digest: &'a [u8; 64],
+        _signature: &'a [u8],
     ) -> impl Future<Output = Result<(), CryptoError>> + 'a {
         core::future::ready(Err(CryptoError::Unsupported))
     }
     fn rsa_sign_pss_sha256<'a>(
         &'a mut self,
-        private_key: &'a [u8],
-        digest: &'a [u8; 32],
-        signature: &'a mut [u8],
+        _private_key: &'a [u8],
+        _digest: &'a [u8; 32],
+        _signature: &'a mut [u8],
     ) -> impl Future<Output = Result<usize, CryptoError>> + 'a {
         core::future::ready(Err(CryptoError::Unsupported))
     }
     fn rsa_verify_pss_sha256<'a>(
         &'a mut self,
-        public_key: &'a [u8],
-        digest: &'a [u8; 32],
-        signature: &'a [u8],
+        _public_key: &'a [u8],
+        _digest: &'a [u8; 32],
+        _signature: &'a [u8],
     ) -> impl Future<Output = Result<(), CryptoError>> + 'a {
         core::future::ready(Err(CryptoError::Unsupported))
     }
     fn rsa_sign_pss_sha384<'a>(
         &'a mut self,
-        private_key: &'a [u8],
-        digest: &'a [u8; 48],
-        signature: &'a mut [u8],
+        _private_key: &'a [u8],
+        _digest: &'a [u8; 48],
+        _signature: &'a mut [u8],
     ) -> impl Future<Output = Result<usize, CryptoError>> + 'a {
         core::future::ready(Err(CryptoError::Unsupported))
     }
     fn rsa_verify_pss_sha384<'a>(
         &'a mut self,
-        public_key: &'a [u8],
-        digest: &'a [u8; 48],
-        signature: &'a [u8],
+        _public_key: &'a [u8],
+        _digest: &'a [u8; 48],
+        _signature: &'a [u8],
     ) -> impl Future<Output = Result<(), CryptoError>> + 'a {
         core::future::ready(Err(CryptoError::Unsupported))
     }
     fn rsa_sign_pss_sha512<'a>(
         &'a mut self,
-        private_key: &'a [u8],
-        digest: &'a [u8; 64],
-        signature: &'a mut [u8],
+        _private_key: &'a [u8],
+        _digest: &'a [u8; 64],
+        _signature: &'a mut [u8],
     ) -> impl Future<Output = Result<usize, CryptoError>> + 'a {
         core::future::ready(Err(CryptoError::Unsupported))
     }
     fn rsa_verify_pss_sha512<'a>(
         &'a mut self,
-        public_key: &'a [u8],
-        digest: &'a [u8; 64],
-        signature: &'a [u8],
+        _public_key: &'a [u8],
+        _digest: &'a [u8; 64],
+        _signature: &'a [u8],
     ) -> impl Future<Output = Result<(), CryptoError>> + 'a {
         core::future::ready(Err(CryptoError::Unsupported))
     }
