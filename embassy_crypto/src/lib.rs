@@ -105,6 +105,41 @@ impl BlockingCryptoDriver for MockDriver {
         Ok(())
     }
 
+    fn blocking_p256_keygen(
+        &mut self,
+        secret_key: &mut [u8; 32],
+        public_key: &mut [u8; 64],
+    ) -> Result<(), CryptoError> {
+        secret_key.fill(0x0C);
+        public_key.fill(0x0D);
+        Ok(())
+    }
+    fn blocking_p256_ecdh(
+        &mut self,
+        _secret_key: &[u8; 32],
+        _public_key: &[u8; 64],
+        shared_secret: &mut [u8; 32],
+    ) -> Result<(), CryptoError> {
+        shared_secret.fill(0x0E);
+        Ok(())
+    }
+    fn blocking_p256_ecdsa_sign(
+        &mut self,
+        _secret_key: &[u8; 32],
+        _digest: &[u8; 32],
+        signature: &mut [u8; 64],
+    ) -> Result<(), CryptoError> {
+        signature.fill(0x0F);
+        Ok(())
+    }
+    fn blocking_p256_ecdsa_verify(
+        &mut self,
+        _public_key: &[u8; 64],
+        _digest: &[u8; 32],
+        _signature: &[u8; 64],
+    ) -> Result<(), CryptoError> {
+        Ok(())
+    }
     fn blocking_p384_keygen(
         &mut self,
         secret_key: &mut [u8; 48],

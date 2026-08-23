@@ -151,6 +151,10 @@ impl CryptoServer<'_> {
     impl_blocking_op!(blocking_aes_ccm_128_decrypt, AesCcm128Decrypt, [key: &[u8; 16], nonce: &[u8], aad: &[u8], ciphertext: &[u8], plaintext: &mut [u8], tag: &[u8; 16]]);
     impl_blocking_op!(blocking_aes_ccm8_128_encrypt, AesCcm8_128Encrypt, [key: &[u8; 16], nonce: &[u8], aad: &[u8], plaintext: &[u8], ciphertext: &mut [u8], tag: &mut [u8; 8]]);
     impl_blocking_op!(blocking_aes_ccm8_128_decrypt, AesCcm8_128Decrypt, [key: &[u8; 16], nonce: &[u8], aad: &[u8], ciphertext: &[u8], plaintext: &mut [u8], tag: &[u8; 8]]);
+    impl_blocking_op!(blocking_p256_keygen, P256Keygen, [secret_key: &mut [u8; 32], public_key: &mut [u8; 64]]);
+    impl_blocking_op!(blocking_p256_ecdh, P256Ecdh, [secret_key: &[u8; 32], public_key: &[u8; 64], shared_secret: &mut [u8; 32]]);
+    impl_blocking_op!(blocking_p256_ecdsa_sign, P256EcdsaSign, [secret_key: &[u8; 32], digest: &[u8; 32], signature: &mut [u8; 64]]);
+    impl_blocking_op!(blocking_p256_ecdsa_verify, P256EcdsaVerify, [public_key: &[u8; 64], digest: &[u8; 32], signature: &[u8; 64]]);
     impl_blocking_op!(blocking_p384_keygen, P384Keygen, [secret_key: &mut [u8; 48], public_key: &mut [u8; 96]]);
     impl_blocking_op!(blocking_p384_ecdh, P384Ecdh, [secret_key: &[u8; 48], public_key: &[u8; 96], shared_secret: &mut [u8; 48]]);
     impl_blocking_op!(blocking_p384_ecdsa_sign, P384EcdsaSign, [secret_key: &[u8; 48], digest: &[u8; 48], signature: &mut [u8; 96]]);

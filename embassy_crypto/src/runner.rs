@@ -267,6 +267,25 @@ pub(crate) enum BlockingOp<'a> {
         plaintext: &'a mut [u8],
         tag: &'a [u8; 8],
     },
+    P256Keygen {
+        secret_key: &'a mut [u8; 32],
+        public_key: &'a mut [u8; 64],
+    },
+    P256Ecdh {
+        secret_key: &'a [u8; 32],
+        public_key: &'a [u8; 64],
+        shared_secret: &'a mut [u8; 32],
+    },
+    P256EcdsaSign {
+        secret_key: &'a [u8; 32],
+        digest: &'a [u8; 32],
+        signature: &'a mut [u8; 64],
+    },
+    P256EcdsaVerify {
+        public_key: &'a [u8; 64],
+        digest: &'a [u8; 32],
+        signature: &'a [u8; 64],
+    },
     P384Keygen {
         secret_key: &'a mut [u8; 48],
         public_key: &'a mut [u8; 96],
@@ -334,6 +353,10 @@ impl BlockingOp<'_> {
             Self::AesCcm8_128Encrypt { .. } | Self::AesCcm8_128Decrypt { .. } => {
                 Capabilities::AES_128_CCM8
             }
+            Self::P256Keygen { .. } => Capabilities::P256_KEYGEN,
+            Self::P256Ecdh { .. } => Capabilities::P256_ECDH,
+            Self::P256EcdsaSign { .. } => Capabilities::P256_ECDSA_SIGN,
+            Self::P256EcdsaVerify { .. } => Capabilities::P256_ECDSA_VERIFY,
             Self::P384Keygen { .. } => Capabilities::P384_KEYGEN,
             Self::P384Ecdh { .. } => Capabilities::P384_ECDH,
             Self::P384EcdsaSign { .. } => Capabilities::P384_ECDSA_SIGN,
@@ -446,6 +469,25 @@ impl<T: BlockingCryptoDriver> BlockingDispatcher for T {
                 plaintext,
                 tag,
             } => self.blocking_aes_ccm8_128_decrypt(key, nonce, aad, ciphertext, plaintext, tag),
+            BlockingOp::P256Keygen {
+                secret_key,
+                public_key,
+            } => self.blocking_p256_keygen(secret_key, public_key),
+            BlockingOp::P256Ecdh {
+                secret_key,
+                public_key,
+                shared_secret,
+            } => self.blocking_p256_ecdh(secret_key, public_key, shared_secret),
+            BlockingOp::P256EcdsaSign {
+                secret_key,
+                digest,
+                signature,
+            } => self.blocking_p256_ecdsa_sign(secret_key, digest, signature),
+            BlockingOp::P256EcdsaVerify {
+                public_key,
+                digest,
+                signature,
+            } => self.blocking_p256_ecdsa_verify(public_key, digest, signature),
             BlockingOp::P384Keygen {
                 secret_key,
                 public_key,

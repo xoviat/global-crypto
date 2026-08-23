@@ -72,6 +72,37 @@ pub trait BlockingCryptoDriver {
     ) -> Result<(), CryptoError> {
         Err(CryptoError::Unsupported)
     }
+    fn blocking_p256_keygen(
+        &mut self,
+        _secret_key: &mut [u8; 32],
+        _public_key: &mut [u8; 64],
+    ) -> Result<(), CryptoError> {
+        Err(CryptoError::Unsupported)
+    }
+    fn blocking_p256_ecdh(
+        &mut self,
+        _secret_key: &[u8; 32],
+        _public_key: &[u8; 64],
+        _shared_secret: &mut [u8; 32],
+    ) -> Result<(), CryptoError> {
+        Err(CryptoError::Unsupported)
+    }
+    fn blocking_p256_ecdsa_sign(
+        &mut self,
+        _secret_key: &[u8; 32],
+        _digest: &[u8; 32],
+        _signature: &mut [u8; 64],
+    ) -> Result<(), CryptoError> {
+        Err(CryptoError::Unsupported)
+    }
+    fn blocking_p256_ecdsa_verify(
+        &mut self,
+        _public_key: &[u8; 64],
+        _digest: &[u8; 32],
+        _signature: &[u8; 64],
+    ) -> Result<(), CryptoError> {
+        Err(CryptoError::Unsupported)
+    }
     fn blocking_p384_keygen(
         &mut self,
         _secret_key: &mut [u8; 48],
