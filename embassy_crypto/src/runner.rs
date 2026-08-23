@@ -437,16 +437,19 @@ pub(crate) enum BlockingOpSize<'a> {
         private_key: &'a [u8],
         digest: &'a [u8; 32],
         signature: &'a mut [u8],
+        entropy: Option<&'a [u8]>,
     },
     RsaSignPssSha384 {
         private_key: &'a [u8],
         digest: &'a [u8; 48],
         signature: &'a mut [u8],
+        entropy: Option<&'a [u8]>,
     },
     RsaSignPssSha512 {
         private_key: &'a [u8],
         digest: &'a [u8; 64],
         signature: &'a mut [u8],
+        entropy: Option<&'a [u8]>,
     },
 }
 
@@ -638,17 +641,20 @@ impl<T: BlockingCryptoDriver> BlockingDispatcher for T {
                 private_key,
                 digest,
                 signature,
-            } => self.blocking_rsa_sign_pss_sha256(private_key, digest, signature),
+                entropy,
+            } => self.blocking_rsa_sign_pss_sha256(private_key, digest, signature, entropy),
             BlockingOpSize::RsaSignPssSha384 {
                 private_key,
                 digest,
                 signature,
-            } => self.blocking_rsa_sign_pss_sha384(private_key, digest, signature),
+                entropy,
+            } => self.blocking_rsa_sign_pss_sha384(private_key, digest, signature, entropy),
             BlockingOpSize::RsaSignPssSha512 {
                 private_key,
                 digest,
                 signature,
-            } => self.blocking_rsa_sign_pss_sha512(private_key, digest, signature),
+                entropy,
+            } => self.blocking_rsa_sign_pss_sha512(private_key, digest, signature, entropy),
         }
     }
 }

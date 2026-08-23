@@ -289,6 +289,7 @@ impl BlockingCryptoDriver for MockDriver {
         _private_key: &[u8],
         _digest: &[u8; 32],
         signature: &mut [u8],
+        _entropy: Option<&[u8]>,
     ) -> Result<usize, CryptoError> {
         signature.fill(0x23);
         Ok(signature.len())
@@ -308,6 +309,7 @@ impl BlockingCryptoDriver for MockDriver {
         _private_key: &[u8],
         _digest: &[u8; 48],
         signature: &mut [u8],
+        _entropy: Option<&[u8]>,
     ) -> Result<usize, CryptoError> {
         signature.fill(0x24);
         Ok(signature.len())
@@ -327,6 +329,7 @@ impl BlockingCryptoDriver for MockDriver {
         _private_key: &[u8],
         _digest: &[u8; 64],
         signature: &mut [u8],
+        _entropy: Option<&[u8]>,
     ) -> Result<usize, CryptoError> {
         signature.fill(0x25);
         Ok(signature.len())

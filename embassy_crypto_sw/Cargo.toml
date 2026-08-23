@@ -4,6 +4,11 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.95"
 
+[features]
+default = []
+alloc = []
+rsa = ["dep:rsa", "alloc", "dep:rand_core"]
+
 [dependencies]
 embassy_crypto_driver = { path = "../embassy_crypto_driver" }
 
@@ -20,3 +25,7 @@ hmac = { version = "0.12", default-features = false }
 p256 = { version = "0.13", default-features = false, features = ["ecdh", "ecdsa"] }
 p384 = { version = "0.13", default-features = false, features = ["ecdh", "ecdsa"] }
 signature = { version = "2", default-features = false }
+
+# RSA (optional, requires alloc)
+rsa = { version = "0.9", optional = true, default-features = false, features = ["sha2"] }
+rand_core = { version = "0.6", optional = true, default-features = false }

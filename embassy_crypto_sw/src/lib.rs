@@ -9,9 +9,13 @@
 //! - AES-CCM-128/8 encrypt/decrypt
 //! - P-256 ECDH, ECDSA sign/verify
 //! - P-384 ECDH, ECDSA sign/verify
+//! - RSA-PKCS1-v1.5 sign/verify (SHA-256/384/512) — `rsa` feature
+//! - RSA-PSS sign/verify (SHA-256/384/512) — `rsa` feature
 //!
-//! **Skipped (first pass):**
-//! - RSA (complex, needs alloc or large stack)
+//! **Feature flags:**
+//! - `rsa`: Enables RSA support via the `rsa` crate. Requires `alloc`.
+//!
+//! **Skipped:**
 //! - P-256/P-384 keygen (needs RNG — caller should supply entropy)
 //! - Hash/HMAC streaming (HashContext 128 bytes too small for RustCrypto state)
 //! - RNG fill (security: never silently substitute software RNG for hardware)
@@ -47,6 +51,68 @@ use p384::ecdsa::{
 };
 use signature::hazmat::{PrehashSigner, PrehashVerifier};
 
+#[cfg(feature = "alloc")]
+extern crate alloc;
+
+#[cfg(feature = "rsa")]
+use rsa::pkcs1::{DecodeRsaPrivateKey, DecodeRsaPublicKey};
+#[cfg(feature = "rsa")]
+use rsa::pkcs8::{DecodePrivateKey, DecodePublicKey};
+#[cfg(feature = "rsa")]
+use rsa::{Pkcs1v15Sign, Pss, RsaPrivateKey, RsaPublicKey};
+
+/// Deterministic RNG backed by a caller-provided entropy slice.
+///
+/// Used for RSA-PSS software signing so that the operation is fully deterministic
+/// given the same inputs (including entropy).
+#[cfg(feature = "rsa")]
+struct SliceRng<'a> {
+    slice: &'a [u8],
+    pos: usize,
+}
+
+#[cfg(feature = "rsa")]
+impl<'a> SliceRng<'a> {
+    fn new(slice: &'a [u8]) -> Self {
+        Self { slice, pos: 0 }
+    }
+}
+
+#[cfg(feature = "rsa")]
+impl<'a> rand_core::RngCore for SliceRng<'a> {
+    fn next_u32(&mut self) -> u32 {
+        let mut buf = [0u8; 4];
+        self.fill_bytes(&mut buf);
+        u32::from_le_bytes(buf)
+    }
+
+    fn next_u64(&mut self) -> u64 {
+        let mut buf = [0u8; 8];
+        self.fill_bytes(&mut buf);
+        u64::from_le_bytes(buf)
+    }
+
+    fn fill_bytes(&mut self, dest: &mut [u8]) {
+        let remaining = self.slice.len().saturating_sub(self.pos);
+        let len = dest.len().min(remaining);
+        dest[..len].copy_from_slice(&self.slice[self.pos..self.pos + len]);
+        self.pos += len;
+        // If entropy is exhausted, zero-fill the rest.
+        // Callers must provide sufficient entropy; this is checked before signing.
+        for b in &mut dest[len..] {
+            *b = 0;
+        }
+    }
+
+    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand_core::Error> {
+        self.fill_bytes(dest);
+        Ok(())
+    }
+}
+
+#[cfg(feature = "rsa")]
+impl<'a> rand_core::CryptoRng for SliceRng<'a> {}
+
 // Compile-time assert that RustCrypto Sha256 fits in HashContext.
 const _: () = assert!(core::mem::size_of::<sha2::Sha256>() <= 256);
 const _: () = assert!(core::mem::size_of::<Hmac<sha2::Sha256>>() <= 256);
@@ -57,9 +123,23 @@ const _: () = assert!(core::mem::size_of::<Hmac<sha2::Sha256>>() <= 256);
 #[derive(Clone, Copy, Debug, Default)]
 pub struct SwDriver;
 
+#[cfg(feature = "rsa")]
+fn parse_rsa_private_key(key_der: &[u8]) -> Result<RsaPrivateKey, CryptoError> {
+    RsaPrivateKey::from_pkcs1_der(key_der)
+        .or_else(|_| RsaPrivateKey::from_pkcs8_der(key_der))
+        .map_err(|_| CryptoError::InvalidKey)
+}
+
+#[cfg(feature = "rsa")]
+fn parse_rsa_public_key(key_der: &[u8]) -> Result<RsaPublicKey, CryptoError> {
+    RsaPublicKey::from_pkcs1_der(key_der)
+        .or_else(|_| RsaPublicKey::from_public_key_der(key_der))
+        .map_err(|_| CryptoError::InvalidKey)
+}
+
 impl BlockingCryptoDriver for SwDriver {
     fn capabilities(&self) -> Capabilities {
-        Capabilities::SHA_256
+        let mut caps = Capabilities::SHA_256
             | Capabilities::HMAC_SHA256
             | Capabilities::P256_KEYGEN
             | Capabilities::P384_KEYGEN
@@ -74,7 +154,19 @@ impl BlockingCryptoDriver for SwDriver {
             | Capabilities::P256_ECDSA_VERIFY
             | Capabilities::P384_ECDH
             | Capabilities::P384_ECDSA_SIGN
-            | Capabilities::P384_ECDSA_VERIFY
+            | Capabilities::P384_ECDSA_VERIFY;
+        #[cfg(feature = "rsa")]
+        {
+            // Software implements deterministic RSA operations only.
+            // PSS sign requires RNG and is left to hardware acceleration.
+            caps |= Capabilities::RSA_PKCS1V15_SHA256
+                | Capabilities::RSA_PKCS1V15_SHA384
+                | Capabilities::RSA_PKCS1V15_SHA512
+                | Capabilities::RSA_PSS_SHA256
+                | Capabilities::RSA_PSS_SHA384
+                | Capabilities::RSA_PSS_SHA512;
+        }
+        caps
     }
 
     // ------------------------------------------------------------------
@@ -559,5 +651,215 @@ impl BlockingCryptoDriver for SwDriver {
         public_key[..48].copy_from_slice(point.x().ok_or(CryptoError::InvalidKey)?.as_slice());
         public_key[48..].copy_from_slice(point.y().ok_or(CryptoError::InvalidKey)?.as_slice());
         Ok(())
+    }
+
+    // ------------------------------------------------------------------
+    // RSA-PKCS1-v1.5 verify
+    // ------------------------------------------------------------------
+    #[cfg(feature = "rsa")]
+    fn blocking_rsa_verify_pkcs1v15_sha256(
+        &mut self,
+        public_key: &[u8],
+        digest: &[u8; 32],
+        signature: &[u8],
+    ) -> Result<(), CryptoError> {
+        let key = parse_rsa_public_key(public_key)?;
+        key.verify(Pkcs1v15Sign::new::<sha2::Sha256>(), digest, signature)
+            .map_err(|_| CryptoError::InvalidSignature)
+    }
+
+    #[cfg(feature = "rsa")]
+    fn blocking_rsa_verify_pkcs1v15_sha384(
+        &mut self,
+        public_key: &[u8],
+        digest: &[u8; 48],
+        signature: &[u8],
+    ) -> Result<(), CryptoError> {
+        let key = parse_rsa_public_key(public_key)?;
+        key.verify(Pkcs1v15Sign::new::<sha2::Sha384>(), digest, signature)
+            .map_err(|_| CryptoError::InvalidSignature)
+    }
+
+    #[cfg(feature = "rsa")]
+    fn blocking_rsa_verify_pkcs1v15_sha512(
+        &mut self,
+        public_key: &[u8],
+        digest: &[u8; 64],
+        signature: &[u8],
+    ) -> Result<(), CryptoError> {
+        let key = parse_rsa_public_key(public_key)?;
+        key.verify(Pkcs1v15Sign::new::<sha2::Sha512>(), digest, signature)
+            .map_err(|_| CryptoError::InvalidSignature)
+    }
+
+    // ------------------------------------------------------------------
+    // RSA-PKCS1-v1.5 sign
+    // ------------------------------------------------------------------
+    #[cfg(feature = "rsa")]
+    fn blocking_rsa_sign_pkcs1v15_sha256(
+        &mut self,
+        private_key: &[u8],
+        digest: &[u8; 32],
+        signature: &mut [u8],
+    ) -> Result<usize, CryptoError> {
+        let key = parse_rsa_private_key(private_key)?;
+        let sig = key
+            .sign(Pkcs1v15Sign::new::<sha2::Sha256>(), digest)
+            .map_err(|_| CryptoError::HardwareError)?;
+        if signature.len() < sig.len() {
+            return Err(CryptoError::BufferTooSmall);
+        }
+        signature[..sig.len()].copy_from_slice(&sig);
+        Ok(sig.len())
+    }
+
+    #[cfg(feature = "rsa")]
+    fn blocking_rsa_sign_pkcs1v15_sha384(
+        &mut self,
+        private_key: &[u8],
+        digest: &[u8; 48],
+        signature: &mut [u8],
+    ) -> Result<usize, CryptoError> {
+        let key = parse_rsa_private_key(private_key)?;
+        let sig = key
+            .sign(Pkcs1v15Sign::new::<sha2::Sha384>(), digest)
+            .map_err(|_| CryptoError::HardwareError)?;
+        if signature.len() < sig.len() {
+            return Err(CryptoError::BufferTooSmall);
+        }
+        signature[..sig.len()].copy_from_slice(&sig);
+        Ok(sig.len())
+    }
+
+    #[cfg(feature = "rsa")]
+    fn blocking_rsa_sign_pkcs1v15_sha512(
+        &mut self,
+        private_key: &[u8],
+        digest: &[u8; 64],
+        signature: &mut [u8],
+    ) -> Result<usize, CryptoError> {
+        let key = parse_rsa_private_key(private_key)?;
+        let sig = key
+            .sign(Pkcs1v15Sign::new::<sha2::Sha512>(), digest)
+            .map_err(|_| CryptoError::HardwareError)?;
+        if signature.len() < sig.len() {
+            return Err(CryptoError::BufferTooSmall);
+        }
+        signature[..sig.len()].copy_from_slice(&sig);
+        Ok(sig.len())
+    }
+
+    // ------------------------------------------------------------------
+    // RSA-PSS verify
+    // ------------------------------------------------------------------
+    #[cfg(feature = "rsa")]
+    fn blocking_rsa_verify_pss_sha256(
+        &mut self,
+        public_key: &[u8],
+        digest: &[u8; 32],
+        signature: &[u8],
+    ) -> Result<(), CryptoError> {
+        let key = parse_rsa_public_key(public_key)?;
+        key.verify(Pss::new::<sha2::Sha256>(), digest, signature)
+            .map_err(|_| CryptoError::InvalidSignature)
+    }
+
+    #[cfg(feature = "rsa")]
+    fn blocking_rsa_verify_pss_sha384(
+        &mut self,
+        public_key: &[u8],
+        digest: &[u8; 48],
+        signature: &[u8],
+    ) -> Result<(), CryptoError> {
+        let key = parse_rsa_public_key(public_key)?;
+        key.verify(Pss::new::<sha2::Sha384>(), digest, signature)
+            .map_err(|_| CryptoError::InvalidSignature)
+    }
+
+    #[cfg(feature = "rsa")]
+    fn blocking_rsa_verify_pss_sha512(
+        &mut self,
+        public_key: &[u8],
+        digest: &[u8; 64],
+        signature: &[u8],
+    ) -> Result<(), CryptoError> {
+        let key = parse_rsa_public_key(public_key)?;
+        key.verify(Pss::new::<sha2::Sha512>(), digest, signature)
+            .map_err(|_| CryptoError::InvalidSignature)
+    }
+
+    // ------------------------------------------------------------------
+    // RSA-PSS sign (deterministic — entropy provided by caller)
+    // ------------------------------------------------------------------
+    #[cfg(feature = "rsa")]
+    fn blocking_rsa_sign_pss_sha256(
+        &mut self,
+        private_key: &[u8],
+        digest: &[u8; 32],
+        signature: &mut [u8],
+        entropy: Option<&[u8]>,
+    ) -> Result<usize, CryptoError> {
+        let key = parse_rsa_private_key(private_key)?;
+        let entropy = entropy.ok_or(CryptoError::InvalidInput)?;
+        if entropy.len() < 32 {
+            return Err(CryptoError::InvalidInput);
+        }
+        let mut rng = SliceRng::new(entropy);
+        let sig = key
+            .sign_with_rng(&mut rng, Pss::new::<sha2::Sha256>(), digest)
+            .map_err(|_| CryptoError::HardwareError)?;
+        if signature.len() < sig.len() {
+            return Err(CryptoError::BufferTooSmall);
+        }
+        signature[..sig.len()].copy_from_slice(&sig);
+        Ok(sig.len())
+    }
+
+    #[cfg(feature = "rsa")]
+    fn blocking_rsa_sign_pss_sha384(
+        &mut self,
+        private_key: &[u8],
+        digest: &[u8; 48],
+        signature: &mut [u8],
+        entropy: Option<&[u8]>,
+    ) -> Result<usize, CryptoError> {
+        let key = parse_rsa_private_key(private_key)?;
+        let entropy = entropy.ok_or(CryptoError::InvalidInput)?;
+        if entropy.len() < 48 {
+            return Err(CryptoError::InvalidInput);
+        }
+        let mut rng = SliceRng::new(entropy);
+        let sig = key
+            .sign_with_rng(&mut rng, Pss::new::<sha2::Sha384>(), digest)
+            .map_err(|_| CryptoError::HardwareError)?;
+        if signature.len() < sig.len() {
+            return Err(CryptoError::BufferTooSmall);
+        }
+        signature[..sig.len()].copy_from_slice(&sig);
+        Ok(sig.len())
+    }
+
+    #[cfg(feature = "rsa")]
+    fn blocking_rsa_sign_pss_sha512(
+        &mut self,
+        private_key: &[u8],
+        digest: &[u8; 64],
+        signature: &mut [u8],
+        entropy: Option<&[u8]>,
+    ) -> Result<usize, CryptoError> {
+        let key = parse_rsa_private_key(private_key)?;
+        let entropy = entropy.ok_or(CryptoError::InvalidInput)?;
+        if entropy.len() < 64 {
+            return Err(CryptoError::InvalidInput);
+        }
+        let mut rng = SliceRng::new(entropy);
+        let sig = key
+            .sign_with_rng(&mut rng, Pss::new::<sha2::Sha512>(), digest)
+            .map_err(|_| CryptoError::HardwareError)?;
+        if signature.len() < sig.len() {
+            return Err(CryptoError::BufferTooSmall);
+        }
+        signature[..sig.len()].copy_from_slice(&sig);
+        Ok(sig.len())
     }
 }

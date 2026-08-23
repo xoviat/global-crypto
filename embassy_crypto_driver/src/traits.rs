@@ -226,11 +226,16 @@ pub trait BlockingCryptoDriver {
     ) -> Result<(), CryptoError> {
         Err(CryptoError::Unsupported)
     }
+    /// Sign with RSA-PSS + SHA-256.
+    ///
+    /// `entropy` must contain at least 32 bytes of random data (the PSS salt length).
+    /// Hardware drivers may ignore `entropy` and use an internal TRNG instead.
     fn blocking_rsa_sign_pss_sha256(
         &mut self,
         _private_key: &[u8],
         _digest: &[u8; 32],
         _signature: &mut [u8],
+        _entropy: Option<&[u8]>,
     ) -> Result<usize, CryptoError> {
         Err(CryptoError::Unsupported)
     }
@@ -242,11 +247,16 @@ pub trait BlockingCryptoDriver {
     ) -> Result<(), CryptoError> {
         Err(CryptoError::Unsupported)
     }
+    /// Sign with RSA-PSS + SHA-384.
+    ///
+    /// `entropy` must contain at least 48 bytes of random data (the PSS salt length).
+    /// Hardware drivers may ignore `entropy` and use an internal TRNG instead.
     fn blocking_rsa_sign_pss_sha384(
         &mut self,
         _private_key: &[u8],
         _digest: &[u8; 48],
         _signature: &mut [u8],
+        _entropy: Option<&[u8]>,
     ) -> Result<usize, CryptoError> {
         Err(CryptoError::Unsupported)
     }
@@ -258,11 +268,16 @@ pub trait BlockingCryptoDriver {
     ) -> Result<(), CryptoError> {
         Err(CryptoError::Unsupported)
     }
+    /// Sign with RSA-PSS + SHA-512.
+    ///
+    /// `entropy` must contain at least 64 bytes of random data (the PSS salt length).
+    /// Hardware drivers may ignore `entropy` and use an internal TRNG instead.
     fn blocking_rsa_sign_pss_sha512(
         &mut self,
         _private_key: &[u8],
         _digest: &[u8; 64],
         _signature: &mut [u8],
+        _entropy: Option<&[u8]>,
     ) -> Result<usize, CryptoError> {
         Err(CryptoError::Unsupported)
     }
