@@ -602,8 +602,12 @@ macro_rules! impl_crypto_runner {
                                     }
                                 }
                             }
+
+                            continue;
                         }
                     })+
+
+                    break;
                 }
             }
 
