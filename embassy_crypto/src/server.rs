@@ -3,14 +3,14 @@ use core::pin::Pin;
 use core::task::{Context, Poll};
 
 use crate::runner::RunnerBackend;
-use embassy_crypto_driver::{Algorithm, Capabilities, CryptoError};
+use embassy_crypto_driver::{Algorithm, CryptoError};
 
 /// Generate a blocking crypto operation that returns `Result<(), CryptoError>`.
 macro_rules! impl_blocking_op {
-    ($name:ident, $cap:expr, $driver_method:ident, [ $($arg:ident: $ty:ty),* $(,)? ]) => {
+    ($name:ident, $variant:ident, [ $($arg:ident: $ty:ty),* $(,)? ]) => {
         pub fn $name(&self, $($arg: $ty),*) -> Result<(), CryptoError> {
             self.backend
-                .try_blocking($cap, &mut |drv| drv.$driver_method($($arg),*))
+                .dispatch_blocking(crate::runner::BlockingOp::$variant { $($arg),* })
                 .unwrap_or(Err(CryptoError::HardwareError))
         }
     };
@@ -18,10 +18,10 @@ macro_rules! impl_blocking_op {
 
 /// Generate a blocking crypto operation that returns `Result<usize, CryptoError>`.
 macro_rules! impl_blocking_size_op {
-    ($name:ident, $cap:expr, $driver_method:ident, [ $($arg:ident: $ty:ty),* $(,)? ]) => {
+    ($name:ident, $variant:ident, [ $($arg:ident: $ty:ty),* $(,)? ]) => {
         pub fn $name(&self, $($arg: $ty),*) -> Result<usize, CryptoError> {
             self.backend
-                .try_blocking_size($cap, &mut |drv| drv.$driver_method($($arg),*))
+                .dispatch_blocking_size(crate::runner::BlockingOpSize::$variant { $($arg),* })
                 .unwrap_or(Err(CryptoError::HardwareError))
         }
     };
@@ -141,33 +141,33 @@ impl CryptoServer<'_> {
             return result;
         }
         self.backend
-            .try_blocking(Capabilities::RNG, &mut |drv| drv.blocking_rng_fill(dest))
+            .dispatch_blocking(crate::runner::BlockingOp::RngFill { dest })
             .unwrap_or(Err(CryptoError::HardwareError))
     }
-    impl_blocking_op!(blocking_aes_128_ecb_encrypt, Capabilities::AES_128_ECB, blocking_aes_128_ecb_encrypt, [block: &mut [u8; 16], key: &[u8; 16]]);
-    impl_blocking_op!(blocking_aes_128_ecb_decrypt, Capabilities::AES_128_ECB, blocking_aes_128_ecb_decrypt, [block: &mut [u8; 16], key: &[u8; 16]]);
-    impl_blocking_op!(blocking_aes_128_cmac, Capabilities::AES_128_CMAC, blocking_aes_128_cmac, [key: &[u8; 16], data: &[u8], out: &mut [u8; 16]]);
-    impl_blocking_op!(blocking_aes_ccm_128_encrypt, Capabilities::AES_128_CCM, blocking_aes_ccm_128_encrypt, [key: &[u8; 16], nonce: &[u8], aad: &[u8], plaintext: &[u8], ciphertext: &mut [u8], tag: &mut [u8; 16]]);
-    impl_blocking_op!(blocking_aes_ccm_128_decrypt, Capabilities::AES_128_CCM, blocking_aes_ccm_128_decrypt, [key: &[u8; 16], nonce: &[u8], aad: &[u8], ciphertext: &[u8], plaintext: &mut [u8], tag: &[u8; 16]]);
-    impl_blocking_op!(blocking_aes_ccm8_128_encrypt, Capabilities::AES_128_CCM8, blocking_aes_ccm8_128_encrypt, [key: &[u8; 16], nonce: &[u8], aad: &[u8], plaintext: &[u8], ciphertext: &mut [u8], tag: &mut [u8; 8]]);
-    impl_blocking_op!(blocking_aes_ccm8_128_decrypt, Capabilities::AES_128_CCM8, blocking_aes_ccm8_128_decrypt, [key: &[u8; 16], nonce: &[u8], aad: &[u8], ciphertext: &[u8], plaintext: &mut [u8], tag: &[u8; 8]]);
-    impl_blocking_op!(blocking_p384_keygen, Capabilities::P384_KEYGEN, blocking_p384_keygen, [secret_key: &mut [u8; 48], public_key: &mut [u8; 96]]);
-    impl_blocking_op!(blocking_p384_ecdh, Capabilities::P384_ECDH, blocking_p384_ecdh, [secret_key: &[u8; 48], public_key: &[u8; 96], shared_secret: &mut [u8; 48]]);
-    impl_blocking_op!(blocking_p384_ecdsa_sign, Capabilities::P384_ECDSA_SIGN, blocking_p384_ecdsa_sign, [secret_key: &[u8; 48], digest: &[u8; 48], signature: &mut [u8; 96]]);
-    impl_blocking_op!(blocking_p384_ecdsa_verify, Capabilities::P384_ECDSA_VERIFY, blocking_p384_ecdsa_verify, [public_key: &[u8; 96], digest: &[u8; 48], signature: &[u8; 96]]);
+    impl_blocking_op!(blocking_aes_128_ecb_encrypt, Aes128EcbEncrypt, [block: &mut [u8; 16], key: &[u8; 16]]);
+    impl_blocking_op!(blocking_aes_128_ecb_decrypt, Aes128EcbDecrypt, [block: &mut [u8; 16], key: &[u8; 16]]);
+    impl_blocking_op!(blocking_aes_128_cmac, Aes128Cmac, [key: &[u8; 16], data: &[u8], out: &mut [u8; 16]]);
+    impl_blocking_op!(blocking_aes_ccm_128_encrypt, AesCcm128Encrypt, [key: &[u8; 16], nonce: &[u8], aad: &[u8], plaintext: &[u8], ciphertext: &mut [u8], tag: &mut [u8; 16]]);
+    impl_blocking_op!(blocking_aes_ccm_128_decrypt, AesCcm128Decrypt, [key: &[u8; 16], nonce: &[u8], aad: &[u8], ciphertext: &[u8], plaintext: &mut [u8], tag: &[u8; 16]]);
+    impl_blocking_op!(blocking_aes_ccm8_128_encrypt, AesCcm8_128Encrypt, [key: &[u8; 16], nonce: &[u8], aad: &[u8], plaintext: &[u8], ciphertext: &mut [u8], tag: &mut [u8; 8]]);
+    impl_blocking_op!(blocking_aes_ccm8_128_decrypt, AesCcm8_128Decrypt, [key: &[u8; 16], nonce: &[u8], aad: &[u8], ciphertext: &[u8], plaintext: &mut [u8], tag: &[u8; 8]]);
+    impl_blocking_op!(blocking_p384_keygen, P384Keygen, [secret_key: &mut [u8; 48], public_key: &mut [u8; 96]]);
+    impl_blocking_op!(blocking_p384_ecdh, P384Ecdh, [secret_key: &[u8; 48], public_key: &[u8; 96], shared_secret: &mut [u8; 48]]);
+    impl_blocking_op!(blocking_p384_ecdsa_sign, P384EcdsaSign, [secret_key: &[u8; 48], digest: &[u8; 48], signature: &mut [u8; 96]]);
+    impl_blocking_op!(blocking_p384_ecdsa_verify, P384EcdsaVerify, [public_key: &[u8; 96], digest: &[u8; 48], signature: &[u8; 96]]);
 
-    impl_blocking_size_op!(blocking_rsa_sign_pkcs1v15_sha256, Capabilities::RSA_PKCS1V15_SHA256, blocking_rsa_sign_pkcs1v15_sha256, [private_key: &[u8], digest: &[u8; 32], signature: &mut [u8]]);
-    impl_blocking_op!(blocking_rsa_verify_pkcs1v15_sha256, Capabilities::RSA_PKCS1V15_SHA256, blocking_rsa_verify_pkcs1v15_sha256, [public_key: &[u8], digest: &[u8; 32], signature: &[u8]]);
-    impl_blocking_size_op!(blocking_rsa_sign_pkcs1v15_sha384, Capabilities::RSA_PKCS1V15_SHA384, blocking_rsa_sign_pkcs1v15_sha384, [private_key: &[u8], digest: &[u8; 48], signature: &mut [u8]]);
-    impl_blocking_op!(blocking_rsa_verify_pkcs1v15_sha384, Capabilities::RSA_PKCS1V15_SHA384, blocking_rsa_verify_pkcs1v15_sha384, [public_key: &[u8], digest: &[u8; 48], signature: &[u8]]);
-    impl_blocking_size_op!(blocking_rsa_sign_pkcs1v15_sha512, Capabilities::RSA_PKCS1V15_SHA512, blocking_rsa_sign_pkcs1v15_sha512, [private_key: &[u8], digest: &[u8; 64], signature: &mut [u8]]);
-    impl_blocking_op!(blocking_rsa_verify_pkcs1v15_sha512, Capabilities::RSA_PKCS1V15_SHA512, blocking_rsa_verify_pkcs1v15_sha512, [public_key: &[u8], digest: &[u8; 64], signature: &[u8]]);
-    impl_blocking_size_op!(blocking_rsa_sign_pss_sha256, Capabilities::RSA_PSS_SHA256, blocking_rsa_sign_pss_sha256, [private_key: &[u8], digest: &[u8; 32], signature: &mut [u8]]);
-    impl_blocking_op!(blocking_rsa_verify_pss_sha256, Capabilities::RSA_PSS_SHA256, blocking_rsa_verify_pss_sha256, [public_key: &[u8], digest: &[u8; 32], signature: &[u8]]);
-    impl_blocking_size_op!(blocking_rsa_sign_pss_sha384, Capabilities::RSA_PSS_SHA384, blocking_rsa_sign_pss_sha384, [private_key: &[u8], digest: &[u8; 48], signature: &mut [u8]]);
-    impl_blocking_op!(blocking_rsa_verify_pss_sha384, Capabilities::RSA_PSS_SHA384, blocking_rsa_verify_pss_sha384, [public_key: &[u8], digest: &[u8; 48], signature: &[u8]]);
-    impl_blocking_size_op!(blocking_rsa_sign_pss_sha512, Capabilities::RSA_PSS_SHA512, blocking_rsa_sign_pss_sha512, [private_key: &[u8], digest: &[u8; 64], signature: &mut [u8]]);
-    impl_blocking_op!(blocking_rsa_verify_pss_sha512, Capabilities::RSA_PSS_SHA512, blocking_rsa_verify_pss_sha512, [public_key: &[u8], digest: &[u8; 64], signature: &[u8]]);
+    impl_blocking_size_op!(blocking_rsa_sign_pkcs1v15_sha256, RsaSignPkcs1v15Sha256, [private_key: &[u8], digest: &[u8; 32], signature: &mut [u8]]);
+    impl_blocking_op!(blocking_rsa_verify_pkcs1v15_sha256, RsaVerifyPkcs1v15Sha256, [public_key: &[u8], digest: &[u8; 32], signature: &[u8]]);
+    impl_blocking_size_op!(blocking_rsa_sign_pkcs1v15_sha384, RsaSignPkcs1v15Sha384, [private_key: &[u8], digest: &[u8; 48], signature: &mut [u8]]);
+    impl_blocking_op!(blocking_rsa_verify_pkcs1v15_sha384, RsaVerifyPkcs1v15Sha384, [public_key: &[u8], digest: &[u8; 48], signature: &[u8]]);
+    impl_blocking_size_op!(blocking_rsa_sign_pkcs1v15_sha512, RsaSignPkcs1v15Sha512, [private_key: &[u8], digest: &[u8; 64], signature: &mut [u8]]);
+    impl_blocking_op!(blocking_rsa_verify_pkcs1v15_sha512, RsaVerifyPkcs1v15Sha512, [public_key: &[u8], digest: &[u8; 64], signature: &[u8]]);
+    impl_blocking_size_op!(blocking_rsa_sign_pss_sha256, RsaSignPssSha256, [private_key: &[u8], digest: &[u8; 32], signature: &mut [u8]]);
+    impl_blocking_op!(blocking_rsa_verify_pss_sha256, RsaVerifyPssSha256, [public_key: &[u8], digest: &[u8; 32], signature: &[u8]]);
+    impl_blocking_size_op!(blocking_rsa_sign_pss_sha384, RsaSignPssSha384, [private_key: &[u8], digest: &[u8; 48], signature: &mut [u8]]);
+    impl_blocking_op!(blocking_rsa_verify_pss_sha384, RsaVerifyPssSha384, [public_key: &[u8], digest: &[u8; 48], signature: &[u8]]);
+    impl_blocking_size_op!(blocking_rsa_sign_pss_sha512, RsaSignPssSha512, [private_key: &[u8], digest: &[u8; 64], signature: &mut [u8]]);
+    impl_blocking_op!(blocking_rsa_verify_pss_sha512, RsaVerifyPssSha512, [public_key: &[u8], digest: &[u8; 64], signature: &[u8]]);
 
     // ------------------------------------------------------------------
     // Async constructors

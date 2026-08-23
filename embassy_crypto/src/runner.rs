@@ -216,18 +216,328 @@ macro_rules! join_n {
 }
 
 /// Object-safe backend used by `CryptoServer`.
-pub(crate) trait RunnerBackend {
-    fn try_blocking(
-        &self,
-        required: Capabilities,
-        f: &mut dyn FnMut(&mut dyn BlockingCryptoDriver) -> Result<(), CryptoError>,
-    ) -> Option<Result<(), CryptoError>>;
+// ------------------------------------------------------------------
+// Enum dispatch for blocking operations (eliminates dyn FnMut + dyn Driver)
+// ------------------------------------------------------------------
 
-    fn try_blocking_size(
-        &self,
-        required: Capabilities,
-        f: &mut dyn FnMut(&mut dyn BlockingCryptoDriver) -> Result<usize, CryptoError>,
-    ) -> Option<Result<usize, CryptoError>>;
+/// Discriminated union of all blocking unit-returning crypto operations.
+pub(crate) enum BlockingOp<'a> {
+    Aes128EcbEncrypt {
+        block: &'a mut [u8; 16],
+        key: &'a [u8; 16],
+    },
+    Aes128EcbDecrypt {
+        block: &'a mut [u8; 16],
+        key: &'a [u8; 16],
+    },
+    Aes128Cmac {
+        key: &'a [u8; 16],
+        data: &'a [u8],
+        out: &'a mut [u8; 16],
+    },
+    AesCcm128Encrypt {
+        key: &'a [u8; 16],
+        nonce: &'a [u8],
+        aad: &'a [u8],
+        plaintext: &'a [u8],
+        ciphertext: &'a mut [u8],
+        tag: &'a mut [u8; 16],
+    },
+    AesCcm128Decrypt {
+        key: &'a [u8; 16],
+        nonce: &'a [u8],
+        aad: &'a [u8],
+        ciphertext: &'a [u8],
+        plaintext: &'a mut [u8],
+        tag: &'a [u8; 16],
+    },
+    AesCcm8_128Encrypt {
+        key: &'a [u8; 16],
+        nonce: &'a [u8],
+        aad: &'a [u8],
+        plaintext: &'a [u8],
+        ciphertext: &'a mut [u8],
+        tag: &'a mut [u8; 8],
+    },
+    AesCcm8_128Decrypt {
+        key: &'a [u8; 16],
+        nonce: &'a [u8],
+        aad: &'a [u8],
+        ciphertext: &'a [u8],
+        plaintext: &'a mut [u8],
+        tag: &'a [u8; 8],
+    },
+    P384Keygen {
+        secret_key: &'a mut [u8; 48],
+        public_key: &'a mut [u8; 96],
+    },
+    P384Ecdh {
+        secret_key: &'a [u8; 48],
+        public_key: &'a [u8; 96],
+        shared_secret: &'a mut [u8; 48],
+    },
+    P384EcdsaSign {
+        secret_key: &'a [u8; 48],
+        digest: &'a [u8; 48],
+        signature: &'a mut [u8; 96],
+    },
+    P384EcdsaVerify {
+        public_key: &'a [u8; 96],
+        digest: &'a [u8; 48],
+        signature: &'a [u8; 96],
+    },
+    RsaVerifyPkcs1v15Sha256 {
+        public_key: &'a [u8],
+        digest: &'a [u8; 32],
+        signature: &'a [u8],
+    },
+    RsaVerifyPkcs1v15Sha384 {
+        public_key: &'a [u8],
+        digest: &'a [u8; 48],
+        signature: &'a [u8],
+    },
+    RsaVerifyPkcs1v15Sha512 {
+        public_key: &'a [u8],
+        digest: &'a [u8; 64],
+        signature: &'a [u8],
+    },
+    RsaVerifyPssSha256 {
+        public_key: &'a [u8],
+        digest: &'a [u8; 32],
+        signature: &'a [u8],
+    },
+    RsaVerifyPssSha384 {
+        public_key: &'a [u8],
+        digest: &'a [u8; 48],
+        signature: &'a [u8],
+    },
+    RsaVerifyPssSha512 {
+        public_key: &'a [u8],
+        digest: &'a [u8; 64],
+        signature: &'a [u8],
+    },
+    RngFill {
+        dest: &'a mut [u8],
+    },
+}
+
+impl BlockingOp<'_> {
+    pub fn required_caps(&self) -> Capabilities {
+        match self {
+            Self::Aes128EcbEncrypt { .. } | Self::Aes128EcbDecrypt { .. } => {
+                Capabilities::AES_128_ECB
+            }
+            Self::Aes128Cmac { .. } => Capabilities::AES_128_CMAC,
+            Self::AesCcm128Encrypt { .. } | Self::AesCcm128Decrypt { .. } => {
+                Capabilities::AES_128_CCM
+            }
+            Self::AesCcm8_128Encrypt { .. } | Self::AesCcm8_128Decrypt { .. } => {
+                Capabilities::AES_128_CCM8
+            }
+            Self::P384Keygen { .. } => Capabilities::P384_KEYGEN,
+            Self::P384Ecdh { .. } => Capabilities::P384_ECDH,
+            Self::P384EcdsaSign { .. } => Capabilities::P384_ECDSA_SIGN,
+            Self::P384EcdsaVerify { .. } => Capabilities::P384_ECDSA_VERIFY,
+            Self::RsaVerifyPkcs1v15Sha256 { .. } => Capabilities::RSA_PKCS1V15_SHA256,
+            Self::RsaVerifyPkcs1v15Sha384 { .. } => Capabilities::RSA_PKCS1V15_SHA384,
+            Self::RsaVerifyPkcs1v15Sha512 { .. } => Capabilities::RSA_PKCS1V15_SHA512,
+            Self::RsaVerifyPssSha256 { .. } => Capabilities::RSA_PSS_SHA256,
+            Self::RsaVerifyPssSha384 { .. } => Capabilities::RSA_PSS_SHA384,
+            Self::RsaVerifyPssSha512 { .. } => Capabilities::RSA_PSS_SHA512,
+            Self::RngFill { .. } => Capabilities::RNG,
+        }
+    }
+}
+
+/// Discriminated union of all blocking size-returning crypto operations.
+pub(crate) enum BlockingOpSize<'a> {
+    RsaSignPkcs1v15Sha256 {
+        private_key: &'a [u8],
+        digest: &'a [u8; 32],
+        signature: &'a mut [u8],
+    },
+    RsaSignPkcs1v15Sha384 {
+        private_key: &'a [u8],
+        digest: &'a [u8; 48],
+        signature: &'a mut [u8],
+    },
+    RsaSignPkcs1v15Sha512 {
+        private_key: &'a [u8],
+        digest: &'a [u8; 64],
+        signature: &'a mut [u8],
+    },
+    RsaSignPssSha256 {
+        private_key: &'a [u8],
+        digest: &'a [u8; 32],
+        signature: &'a mut [u8],
+    },
+    RsaSignPssSha384 {
+        private_key: &'a [u8],
+        digest: &'a [u8; 48],
+        signature: &'a mut [u8],
+    },
+    RsaSignPssSha512 {
+        private_key: &'a [u8],
+        digest: &'a [u8; 64],
+        signature: &'a mut [u8],
+    },
+}
+
+impl BlockingOpSize<'_> {
+    pub fn required_caps(&self) -> Capabilities {
+        match self {
+            Self::RsaSignPkcs1v15Sha256 { .. } => Capabilities::RSA_PKCS1V15_SHA256,
+            Self::RsaSignPkcs1v15Sha384 { .. } => Capabilities::RSA_PKCS1V15_SHA384,
+            Self::RsaSignPkcs1v15Sha512 { .. } => Capabilities::RSA_PKCS1V15_SHA512,
+            Self::RsaSignPssSha256 { .. } => Capabilities::RSA_PSS_SHA256,
+            Self::RsaSignPssSha384 { .. } => Capabilities::RSA_PSS_SHA384,
+            Self::RsaSignPssSha512 { .. } => Capabilities::RSA_PSS_SHA512,
+        }
+    }
+}
+
+/// Maps enum variants to concrete `BlockingCryptoDriver` method calls.
+///
+/// Blanket impl keeps `impl_crypto_runner!` macro clean — no per-variant codegen.
+pub(crate) trait BlockingDispatcher {
+    fn dispatch(&mut self, op: BlockingOp<'_>) -> Result<(), CryptoError>;
+    fn dispatch_size(&mut self, op: BlockingOpSize<'_>) -> Result<usize, CryptoError>;
+}
+
+impl<T: BlockingCryptoDriver> BlockingDispatcher for T {
+    fn dispatch(&mut self, op: BlockingOp<'_>) -> Result<(), CryptoError> {
+        match op {
+            BlockingOp::Aes128EcbEncrypt { block, key } => {
+                self.blocking_aes_128_ecb_encrypt(block, key)
+            }
+            BlockingOp::Aes128EcbDecrypt { block, key } => {
+                self.blocking_aes_128_ecb_decrypt(block, key)
+            }
+            BlockingOp::Aes128Cmac { key, data, out } => self.blocking_aes_128_cmac(key, data, out),
+            BlockingOp::AesCcm128Encrypt {
+                key,
+                nonce,
+                aad,
+                plaintext,
+                ciphertext,
+                tag,
+            } => self.blocking_aes_ccm_128_encrypt(key, nonce, aad, plaintext, ciphertext, tag),
+            BlockingOp::AesCcm128Decrypt {
+                key,
+                nonce,
+                aad,
+                ciphertext,
+                plaintext,
+                tag,
+            } => self.blocking_aes_ccm_128_decrypt(key, nonce, aad, ciphertext, plaintext, tag),
+            BlockingOp::AesCcm8_128Encrypt {
+                key,
+                nonce,
+                aad,
+                plaintext,
+                ciphertext,
+                tag,
+            } => self.blocking_aes_ccm8_128_encrypt(key, nonce, aad, plaintext, ciphertext, tag),
+            BlockingOp::AesCcm8_128Decrypt {
+                key,
+                nonce,
+                aad,
+                ciphertext,
+                plaintext,
+                tag,
+            } => self.blocking_aes_ccm8_128_decrypt(key, nonce, aad, ciphertext, plaintext, tag),
+            BlockingOp::P384Keygen {
+                secret_key,
+                public_key,
+            } => self.blocking_p384_keygen(secret_key, public_key),
+            BlockingOp::P384Ecdh {
+                secret_key,
+                public_key,
+                shared_secret,
+            } => self.blocking_p384_ecdh(secret_key, public_key, shared_secret),
+            BlockingOp::P384EcdsaSign {
+                secret_key,
+                digest,
+                signature,
+            } => self.blocking_p384_ecdsa_sign(secret_key, digest, signature),
+            BlockingOp::P384EcdsaVerify {
+                public_key,
+                digest,
+                signature,
+            } => self.blocking_p384_ecdsa_verify(public_key, digest, signature),
+            BlockingOp::RsaVerifyPkcs1v15Sha256 {
+                public_key,
+                digest,
+                signature,
+            } => self.blocking_rsa_verify_pkcs1v15_sha256(public_key, digest, signature),
+            BlockingOp::RsaVerifyPkcs1v15Sha384 {
+                public_key,
+                digest,
+                signature,
+            } => self.blocking_rsa_verify_pkcs1v15_sha384(public_key, digest, signature),
+            BlockingOp::RsaVerifyPkcs1v15Sha512 {
+                public_key,
+                digest,
+                signature,
+            } => self.blocking_rsa_verify_pkcs1v15_sha512(public_key, digest, signature),
+            BlockingOp::RsaVerifyPssSha256 {
+                public_key,
+                digest,
+                signature,
+            } => self.blocking_rsa_verify_pss_sha256(public_key, digest, signature),
+            BlockingOp::RsaVerifyPssSha384 {
+                public_key,
+                digest,
+                signature,
+            } => self.blocking_rsa_verify_pss_sha384(public_key, digest, signature),
+            BlockingOp::RsaVerifyPssSha512 {
+                public_key,
+                digest,
+                signature,
+            } => self.blocking_rsa_verify_pss_sha512(public_key, digest, signature),
+            BlockingOp::RngFill { dest } => self.blocking_rng_fill(dest),
+        }
+    }
+
+    fn dispatch_size(&mut self, op: BlockingOpSize<'_>) -> Result<usize, CryptoError> {
+        match op {
+            BlockingOpSize::RsaSignPkcs1v15Sha256 {
+                private_key,
+                digest,
+                signature,
+            } => self.blocking_rsa_sign_pkcs1v15_sha256(private_key, digest, signature),
+            BlockingOpSize::RsaSignPkcs1v15Sha384 {
+                private_key,
+                digest,
+                signature,
+            } => self.blocking_rsa_sign_pkcs1v15_sha384(private_key, digest, signature),
+            BlockingOpSize::RsaSignPkcs1v15Sha512 {
+                private_key,
+                digest,
+                signature,
+            } => self.blocking_rsa_sign_pkcs1v15_sha512(private_key, digest, signature),
+            BlockingOpSize::RsaSignPssSha256 {
+                private_key,
+                digest,
+                signature,
+            } => self.blocking_rsa_sign_pss_sha256(private_key, digest, signature),
+            BlockingOpSize::RsaSignPssSha384 {
+                private_key,
+                digest,
+                signature,
+            } => self.blocking_rsa_sign_pss_sha384(private_key, digest, signature),
+            BlockingOpSize::RsaSignPssSha512 {
+                private_key,
+                digest,
+                signature,
+            } => self.blocking_rsa_sign_pss_sha512(private_key, digest, signature),
+        }
+    }
+}
+
+pub(crate) trait RunnerBackend {
+    fn dispatch_blocking(&self, op: BlockingOp<'_>) -> Option<Result<(), CryptoError>>;
+    fn dispatch_blocking_size(&self, op: BlockingOpSize<'_>) -> Option<Result<usize, CryptoError>>;
 
     fn try_context_init(&self, op: Algorithm) -> Result<ContextHandle, CryptoError>;
     fn try_context_update(
@@ -318,30 +628,28 @@ macro_rules! impl_crypto_runner {
         impl<$($T: CryptoDriver),+, const T: usize> RunnerBackend
             for CryptoRunner<($(Mutex<CriticalSectionRawMutex, $T>,)+), T>
         {
-            fn try_blocking(
+            fn dispatch_blocking(
                 &self,
-                required: Capabilities,
-                f: &mut dyn FnMut(&mut dyn BlockingCryptoDriver) -> Result<(), CryptoError>,
+                op: crate::runner::BlockingOp<'_>,
             ) -> Option<Result<(), CryptoError>> {
                 $({
-                    if self.driver_caps[$idx].contains(required) {
+                    if self.driver_caps[$idx].contains(op.required_caps()) {
                         if let Ok(mut guard) = self.drivers.$idx.try_lock() {
-                            return Some(f(&mut *guard));
+                            return Some(guard.dispatch(op));
                         }
                     }
                 })+
                 None
             }
 
-            fn try_blocking_size(
+            fn dispatch_blocking_size(
                 &self,
-                required: Capabilities,
-                f: &mut dyn FnMut(&mut dyn BlockingCryptoDriver) -> Result<usize, CryptoError>,
+                op: crate::runner::BlockingOpSize<'_>,
             ) -> Option<Result<usize, CryptoError>> {
                 $({
-                    if self.driver_caps[$idx].contains(required) {
+                    if self.driver_caps[$idx].contains(op.required_caps()) {
                         if let Ok(mut guard) = self.drivers.$idx.try_lock() {
-                            return Some(f(&mut *guard));
+                            return Some(guard.dispatch_size(op));
                         }
                     }
                 })+
