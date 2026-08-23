@@ -38,7 +38,8 @@ use aes::cipher::typenum::{U13, U16, U8};
 
 // CMAC
 use cmac::Cmac;
-use digest::{Digest, Mac, Update};
+use digest::{Digest, Mac};
+use hmac::Hmac;
 
 // P-256 / P-384
 use p256::ecdsa::{
@@ -53,6 +54,7 @@ use signature::hazmat::{PrehashSigner, PrehashVerifier};
 
 // Compile-time assert that RustCrypto Sha256 fits in HashContext.
 const _: () = assert!(core::mem::size_of::<sha2::Sha256>() <= 256);
+const _: () = assert!(core::mem::size_of::<Hmac<sha2::Sha256>>() <= 256);
 
 
 /// Zero-sized software crypto driver.
@@ -63,7 +65,9 @@ pub struct SwDriver;
 
 impl BlockingCryptoDriver for SwDriver {
     fn capabilities(&self) -> Capabilities {
-        Capabilities::AES_128_ECB
+        Capabilities::SHA_256
+            | Capabilities::HMAC_SHA256
+            | Capabilities::AES_128_ECB
             | Capabilities::AES_128_CMAC
             | Capabilities::AES_128_GCM
             | Capabilities::AES_256_GCM
@@ -495,6 +499,11 @@ impl BlockingCryptoDriver for SwDriver {
                 digest::Update::update(hasher, data);
                 Ok(())
             }
+            Algorithm::HmacSha256 => {
+                let mac = unsafe { &mut *(ctx.0.as_mut_ptr() as *mut Hmac<sha2::Sha256>) };
+                digest::Mac::update(mac, data);
+                Ok(())
+            }
             _ => Err(CryptoError::Unsupported),
         }
     }
@@ -514,18 +523,33 @@ impl BlockingCryptoDriver for SwDriver {
                 out.copy_from_slice(ga.as_slice());
                 Ok(())
             }
+            Algorithm::HmacSha256 => {
+                let mac = unsafe { &*(ctx.0.as_ptr() as *const Hmac<sha2::Sha256>) };
+                let cloned = mac.clone();
+                let result = digest::Mac::finalize(cloned);
+                out.copy_from_slice(result.into_bytes().as_slice());
+                Ok(())
+            }
             _ => Err(CryptoError::Unsupported),
         }
     }
 
     fn blocking_hmac_init(
         &mut self,
-        _op: Algorithm,
-        _key: &[u8],
-        _ctx: &mut HashContext,
+        op: Algorithm,
+        key: &[u8],
+        ctx: &mut HashContext,
     ) -> Result<(), CryptoError> {
-        // HMAC requires two hash states (~208 bytes for HMAC-SHA256).
-        // HashContext is only 128 bytes — unsupported without framework change.
-        Err(CryptoError::Unsupported)
+        match op {
+            Algorithm::HmacSha256 => {
+                let mac = <Hmac<sha2::Sha256> as Mac>::new_from_slice(key)
+                    .map_err(|_| CryptoError::InvalidKey)?;
+                unsafe {
+                    core::ptr::write(ctx.0.as_mut_ptr() as *mut Hmac<sha2::Sha256>, mac);
+                }
+                Ok(())
+            }
+            _ => Err(CryptoError::Unsupported),
+        }
     }
 }

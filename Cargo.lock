@@ -257,6 +257,7 @@ dependencies = [
  "cmac",
  "digest",
  "embassy_crypto_driver",
+ "hmac",
  "p256",
  "p384",
  "sha2",
