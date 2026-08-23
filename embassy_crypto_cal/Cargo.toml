@@ -1,0 +1,9 @@
+[package]
+name = "embassy_crypto_cal"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.95"
+
+[dependencies]
+embassy_crypto_driver = { path = "../embassy_crypto_driver" }
+embedded-cal = { git = "https://github.com/lake-rs/embedded-cal" }
