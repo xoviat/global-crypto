@@ -1,0 +1,20 @@
+[package]
+name = "embassy_crypto_sw"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.95"
+
+[dependencies]
+embassy_crypto_driver = { path = "../embassy_crypto_driver" }
+
+# Symmetric crypto (RustCrypto)
+aes = { version = "0.8", default-features = false }
+aes-gcm = { version = "0.10", default-features = false, features = ["aes"] }
+ccm = { version = "0.5", default-features = false }
+cmac = { version = "0.7", default-features = false }
+digest = { version = "0.10", default-features = false }
+
+# Elliptic curves (RustCrypto)
+p256 = { version = "0.13", default-features = false, features = ["ecdh", "ecdsa"] }
+p384 = { version = "0.13", default-features = false, features = ["ecdh", "ecdsa"] }
+signature = { version = "2", default-features = false }
