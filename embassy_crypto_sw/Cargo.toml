@@ -8,6 +8,7 @@ rust-version = "1.95"
 default = []
 alloc = []
 rsa = ["dep:rsa", "alloc", "dep:rand_core"]
+cortex-m4-p256 = ["dep:p256-cortex-m4"]
 
 [dependencies]
 embassy_crypto_driver = { path = "../embassy_crypto_driver" }
@@ -25,6 +26,11 @@ hmac = { version = "0.12", default-features = false }
 p256 = { version = "0.13", default-features = false, features = ["ecdh", "ecdsa"] }
 p384 = { version = "0.13", default-features = false, features = ["ecdh", "ecdsa"] }
 signature = { version = "2", default-features = false }
+
+# P-256 assembly acceleration for Cortex-M4 / Cortex-M33
+# Uses hand-written UMAAL assembly by Emill. On non-Cortex-M4 targets,
+# automatically falls back to the pure-Rust p256 implementation.
+p256-cortex-m4 = { git = "https://github.com/ycrypto/p256-cortex-m4", default-features = false, features = ["non-cortex-m4-fallback"], optional = true }
 
 # RSA (optional, requires alloc)
 rsa = { version = "0.9", optional = true, default-features = false, features = ["sha2"] }

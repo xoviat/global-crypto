@@ -468,7 +468,11 @@ impl BlockingOpSize<'_> {
 /// Blanket impl keeps `impl_crypto_runner!` macro clean — no per-variant codegen.
 pub(crate) trait BlockingDispatcher {
     fn dispatch(&mut self, op: BlockingOp<'_>) -> Result<(), CryptoError>;
-    fn dispatch_size(&mut self, op: BlockingOpSize<'_>, rng: &mut dyn embassy_crypto_driver::BlockingRng) -> Result<usize, CryptoError>;
+    fn dispatch_size(
+        &mut self,
+        op: BlockingOpSize<'_>,
+        rng: &mut dyn embassy_crypto_driver::BlockingRng,
+    ) -> Result<usize, CryptoError>;
 }
 
 impl<T: BlockingCryptoDriver> BlockingDispatcher for T {
@@ -617,7 +621,11 @@ impl<T: BlockingCryptoDriver> BlockingDispatcher for T {
         }
     }
 
-    fn dispatch_size(&mut self, op: BlockingOpSize<'_>, rng: &mut dyn embassy_crypto_driver::BlockingRng) -> Result<usize, CryptoError> {
+    fn dispatch_size(
+        &mut self,
+        op: BlockingOpSize<'_>,
+        rng: &mut dyn embassy_crypto_driver::BlockingRng,
+    ) -> Result<usize, CryptoError> {
         match op {
             BlockingOpSize::RsaSignPkcs1v15Sha256 {
                 private_key,

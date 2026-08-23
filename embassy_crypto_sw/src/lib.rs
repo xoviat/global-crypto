@@ -14,6 +14,11 @@
 //!
 //! **Feature flags:**
 //! - `rsa`: Enables RSA support via the `rsa` crate. Requires `alloc`.
+//! - `cortex-m4-p256`: Accelerates P-256 ECDH, ECDSA verify, and keygen on
+//!   Cortex-M4/M33 via hand-written UMAAL assembly (`p256-cortex-m4`). On
+//!   non-Cortex-M4 targets this falls back to the pure-Rust `p256` crate.
+//!   P-256 ECDSA signing remains deterministic (pure Rust) because the driver
+//!   trait does not supply an RNG for this operation.
 //!
 //! **Skipped:**
 //! - P-256/P-384 keygen (needs RNG — caller should supply entropy)
@@ -50,6 +55,10 @@ use p384::ecdsa::{
     Signature as P384Signature, SigningKey as P384SigningKey, VerifyingKey as P384VerifyingKey,
 };
 use signature::hazmat::{PrehashSigner, PrehashVerifier};
+
+// P-256 assembly acceleration (optional)
+#[cfg(feature = "cortex-m4-p256")]
+use p256_cortex_m4 as p256_fast;
 
 #[cfg(feature = "alloc")]
 extern crate alloc;
@@ -419,16 +428,29 @@ impl BlockingCryptoDriver for SwDriver {
         public_key: &[u8; 64],
         shared_secret: &mut [u8; 32],
     ) -> Result<(), CryptoError> {
-        let secret = p256::SecretKey::from_slice(secret_key.as_slice())
-            .map_err(|_| CryptoError::InvalidKey)?;
-        let mut sec1 = [0u8; 65];
-        sec1[0] = 0x04;
-        sec1[1..].copy_from_slice(public_key.as_slice());
-        let public =
-            p256::PublicKey::from_sec1_bytes(&sec1).map_err(|_| CryptoError::InvalidKey)?;
-        let shared = p256::ecdh::diffie_hellman(secret.to_nonzero_scalar(), public.as_affine());
-        shared_secret.copy_from_slice(shared.raw_secret_bytes().as_slice());
-        Ok(())
+        #[cfg(feature = "cortex-m4-p256")]
+        {
+            let secret = p256_fast::SecretKey::from_bytes(secret_key.as_slice())
+                .map_err(|_| CryptoError::InvalidKey)?;
+            let public = p256_fast::PublicKey::from_untagged_bytes(public_key.as_slice())
+                .map_err(|_| CryptoError::InvalidKey)?;
+            let shared = secret.agree(&public);
+            shared_secret.copy_from_slice(shared.as_bytes());
+            Ok(())
+        }
+        #[cfg(not(feature = "cortex-m4-p256"))]
+        {
+            let secret = p256::SecretKey::from_slice(secret_key.as_slice())
+                .map_err(|_| CryptoError::InvalidKey)?;
+            let mut sec1 = [0u8; 65];
+            sec1[0] = 0x04;
+            sec1[1..].copy_from_slice(public_key.as_slice());
+            let public =
+                p256::PublicKey::from_sec1_bytes(&sec1).map_err(|_| CryptoError::InvalidKey)?;
+            let shared = p256::ecdh::diffie_hellman(secret.to_nonzero_scalar(), public.as_affine());
+            shared_secret.copy_from_slice(shared.raw_secret_bytes().as_slice());
+            Ok(())
+        }
     }
 
     fn blocking_p256_ecdsa_sign(
@@ -453,17 +475,31 @@ impl BlockingCryptoDriver for SwDriver {
         digest: &[u8; 32],
         signature: &[u8; 64],
     ) -> Result<(), CryptoError> {
-        let mut sec1 = [0u8; 65];
-        sec1[0] = 0x04;
-        sec1[1..].copy_from_slice(public_key.as_slice());
-        let verifying_key =
-            P256VerifyingKey::from_sec1_bytes(&sec1).map_err(|_| CryptoError::InvalidKey)?;
-        let sig = P256Signature::from_bytes(GenericArray::from_slice(signature.as_slice()))
-            .map_err(|_| CryptoError::InvalidSignature)?;
-        verifying_key
-            .verify_prehash(digest.as_slice(), &sig)
-            .map_err(|_| CryptoError::InvalidSignature)?;
-        Ok(())
+        #[cfg(feature = "cortex-m4-p256")]
+        {
+            let public = p256_fast::PublicKey::from_untagged_bytes(public_key.as_slice())
+                .map_err(|_| CryptoError::InvalidKey)?;
+            let sig = p256_fast::Signature::from_untagged_bytes(signature.as_slice())
+                .map_err(|_| CryptoError::InvalidSignature)?;
+            if !public.verify_prehashed(digest.as_slice(), &sig) {
+                return Err(CryptoError::InvalidSignature);
+            }
+            Ok(())
+        }
+        #[cfg(not(feature = "cortex-m4-p256"))]
+        {
+            let mut sec1 = [0u8; 65];
+            sec1[0] = 0x04;
+            sec1[1..].copy_from_slice(public_key.as_slice());
+            let verifying_key =
+                P256VerifyingKey::from_sec1_bytes(&sec1).map_err(|_| CryptoError::InvalidKey)?;
+            let sig = P256Signature::from_bytes(GenericArray::from_slice(signature.as_slice()))
+                .map_err(|_| CryptoError::InvalidSignature)?;
+            verifying_key
+                .verify_prehash(digest.as_slice(), &sig)
+                .map_err(|_| CryptoError::InvalidSignature)?;
+            Ok(())
+        }
     }
 
     // ------------------------------------------------------------------
@@ -613,13 +649,25 @@ impl BlockingCryptoDriver for SwDriver {
         secret_key: &[u8; 32],
         public_key: &mut [u8; 64],
     ) -> Result<(), CryptoError> {
-        let secret = p256::SecretKey::from_slice(secret_key.as_slice())
-            .map_err(|_| CryptoError::InvalidKey)?;
-        let pk = p256::PublicKey::from_secret_scalar(&secret.to_nonzero_scalar());
-        let point = pk.to_encoded_point(false);
-        public_key[..32].copy_from_slice(point.x().ok_or(CryptoError::InvalidKey)?.as_slice());
-        public_key[32..].copy_from_slice(point.y().ok_or(CryptoError::InvalidKey)?.as_slice());
-        Ok(())
+        #[cfg(feature = "cortex-m4-p256")]
+        {
+            let secret = p256_fast::SecretKey::from_bytes(secret_key.as_slice())
+                .map_err(|_| CryptoError::InvalidKey)?;
+            let public = secret.public_key();
+            public_key[..32].copy_from_slice(&public.x());
+            public_key[32..].copy_from_slice(&public.y());
+            Ok(())
+        }
+        #[cfg(not(feature = "cortex-m4-p256"))]
+        {
+            let secret = p256::SecretKey::from_slice(secret_key.as_slice())
+                .map_err(|_| CryptoError::InvalidKey)?;
+            let pk = p256::PublicKey::from_secret_scalar(&secret.to_nonzero_scalar());
+            let point = pk.to_encoded_point(false);
+            public_key[..32].copy_from_slice(point.x().ok_or(CryptoError::InvalidKey)?.as_slice());
+            public_key[32..].copy_from_slice(point.y().ok_or(CryptoError::InvalidKey)?.as_slice());
+            Ok(())
+        }
     }
 
     fn blocking_p384_keygen(

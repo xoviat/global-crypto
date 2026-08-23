@@ -71,6 +71,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1fd0f2584146f6f2ef48085050886acf353beff7305ebd1ae69500e27c67f64b"
 
 [[package]]
+name = "cc"
+version = "1.4.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0ad534f4357a5264cce5019c989cf66a4f0dc4e0d1b1d15f8aacec0ff7360273"
+dependencies = [
+ "find-msvc-tools",
+ "shlex",
+]
+
+[[package]]
 name = "ccm"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -160,6 +170,12 @@ checksum = "0369ee1ad671834580515889b80f2ea915f23b8be8d0daa4bbaf2ac5c7590835"
 dependencies = [
  "cipher",
 ]
+
+[[package]]
+name = "cty"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b365fabc795046672053e29c954733ec3b05e4be654ab130fe8f1f94d7051f35"
 
 [[package]]
 name = "dbl"
@@ -271,6 +287,7 @@ dependencies = [
  "embassy_crypto_driver",
  "hmac",
  "p256",
+ "p256-cortex-m4",
  "p384",
  "rand_core",
  "rsa",
@@ -302,6 +319,12 @@ dependencies = [
  "rand_core",
  "subtle",
 ]
+
+[[package]]
+name = "find-msvc-tools"
+version = "0.1.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d45db016d36b838f563236e9193d0ee6ce38f3f68b6c94e914b4929c96bbb890"
 
 [[package]]
 name = "futures-core"
@@ -495,6 +518,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "p256-cortex-m4"
+version = "0.1.0-alpha.6"
+source = "git+https://github.com/ycrypto/p256-cortex-m4#cdb31e12594b4dc1f045b860a885fdc94d96aee2"
+dependencies = [
+ "ecdsa",
+ "elliptic-curve",
+ "p256",
+ "p256-cortex-m4-sys",
+ "rand_core",
+ "zeroize",
+]
+
+[[package]]
+name = "p256-cortex-m4-sys"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "54a73da4b90c4bb139ff5cca5526f796451cfeea58f5915bc739df36803977de"
+dependencies = [
+ "cc",
+ "cty",
+]
+
+[[package]]
 name = "p384"
 version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -663,6 +709,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "shlex"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
+
+[[package]]
 name = "signature"
 version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -802,3 +854,17 @@ name = "zeroize"
 version = "1.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e13c156562582aa81c60cb29407084cdb54c4164760106ab78e6c5b0858cf64e"
+dependencies = [
+ "zeroize_derive",
+]
+
+[[package]]
+name = "zeroize_derive"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3c50655cbb0fe3fc43170059e702f1ce5e19b84cec58dc87b037a09935c2f328"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
+]
