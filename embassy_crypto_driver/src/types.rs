@@ -33,9 +33,9 @@ impl Capabilities {
     pub const SHA_512_224: Self = Self(1 << 26);
     pub const SHA_512_256: Self = Self(1 << 27);
     pub const SHA_512: Self = Self(1 << 28);
-    pub const HmacSha256: Self = Self(1 << 29);
-    pub const HmacSha384: Self = Self(1 << 30);
-    pub const HmacSha512: Self = Self(1 << 31);
+    pub const HMAC_SHA256: Self = Self(1 << 29);
+    pub const HMAC_SHA384: Self = Self(1 << 30);
+    pub const HMAC_SHA512: Self = Self(1 << 31);
 
     #[inline]
     pub const fn contains(self, other: Self) -> bool {
@@ -136,9 +136,9 @@ impl Algorithm {
             Self::SHA512_224 => Capabilities::SHA_512_224,
             Self::SHA512_256 => Capabilities::SHA_512_256,
             Self::SHA512 => Capabilities::SHA_512,
-            Self::HmacSha256 => Capabilities::HmacSha256,
-            Self::HmacSha384 => Capabilities::HmacSha384,
-            Self::HmacSha512 => Capabilities::HmacSha512,
+            Self::HmacSha256 => Capabilities::HMAC_SHA256,
+            Self::HmacSha384 => Capabilities::HMAC_SHA384,
+            Self::HmacSha512 => Capabilities::HMAC_SHA512,
         }
     }
 

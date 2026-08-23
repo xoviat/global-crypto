@@ -215,7 +215,7 @@ macro_rules! join_n {
     };
 }
 
-/// Object-safe backend used by `CryptoServer`.
+// Object-safe backend used by `CryptoServer`.
 // ------------------------------------------------------------------
 // Enum dispatch for blocking operations (eliminates dyn FnMut + dyn Driver)
 // ------------------------------------------------------------------
@@ -647,6 +647,7 @@ impl<T: BlockingCryptoDriver> BlockingDispatcher for T {
     }
 }
 
+/// Object-safe backend used by `CryptoServer`.
 pub(crate) trait RunnerBackend {
     fn dispatch_blocking(&self, op: BlockingOp<'_>) -> Option<Result<(), CryptoError>>;
     fn dispatch_blocking_size(&self, op: BlockingOpSize<'_>) -> Option<Result<usize, CryptoError>>;
