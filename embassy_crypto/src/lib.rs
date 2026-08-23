@@ -104,6 +104,56 @@ impl BlockingCryptoDriver for MockDriver {
         plaintext.fill(0x09);
         Ok(())
     }
+    fn blocking_aes_gcm_128_encrypt(
+        &mut self,
+        _key: &[u8; 16],
+        _nonce: &[u8],
+        _aad: &[u8],
+        _plaintext: &[u8],
+        ciphertext: &mut [u8],
+        tag: &mut [u8; 16],
+    ) -> Result<(), CryptoError> {
+        ciphertext.fill(0x30);
+        tag.fill(0x31);
+        Ok(())
+    }
+    fn blocking_aes_gcm_128_decrypt(
+        &mut self,
+        _key: &[u8; 16],
+        _nonce: &[u8],
+        _aad: &[u8],
+        _ciphertext: &[u8],
+        plaintext: &mut [u8],
+        _tag: &[u8; 16],
+    ) -> Result<(), CryptoError> {
+        plaintext.fill(0x32);
+        Ok(())
+    }
+    fn blocking_aes_gcm_256_encrypt(
+        &mut self,
+        _key: &[u8; 32],
+        _nonce: &[u8],
+        _aad: &[u8],
+        _plaintext: &[u8],
+        ciphertext: &mut [u8],
+        tag: &mut [u8; 16],
+    ) -> Result<(), CryptoError> {
+        ciphertext.fill(0x33);
+        tag.fill(0x34);
+        Ok(())
+    }
+    fn blocking_aes_gcm_256_decrypt(
+        &mut self,
+        _key: &[u8; 32],
+        _nonce: &[u8],
+        _aad: &[u8],
+        _ciphertext: &[u8],
+        plaintext: &mut [u8],
+        _tag: &[u8; 16],
+    ) -> Result<(), CryptoError> {
+        plaintext.fill(0x35);
+        Ok(())
+    }
 
     fn blocking_p256_keygen(
         &mut self,

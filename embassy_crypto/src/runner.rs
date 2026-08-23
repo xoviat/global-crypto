@@ -267,6 +267,38 @@ pub(crate) enum BlockingOp<'a> {
         plaintext: &'a mut [u8],
         tag: &'a [u8; 8],
     },
+    AesGcm128Encrypt {
+        key: &'a [u8; 16],
+        nonce: &'a [u8],
+        aad: &'a [u8],
+        plaintext: &'a [u8],
+        ciphertext: &'a mut [u8],
+        tag: &'a mut [u8; 16],
+    },
+    AesGcm128Decrypt {
+        key: &'a [u8; 16],
+        nonce: &'a [u8],
+        aad: &'a [u8],
+        ciphertext: &'a [u8],
+        plaintext: &'a mut [u8],
+        tag: &'a [u8; 16],
+    },
+    AesGcm256Encrypt {
+        key: &'a [u8; 32],
+        nonce: &'a [u8],
+        aad: &'a [u8],
+        plaintext: &'a [u8],
+        ciphertext: &'a mut [u8],
+        tag: &'a mut [u8; 16],
+    },
+    AesGcm256Decrypt {
+        key: &'a [u8; 32],
+        nonce: &'a [u8],
+        aad: &'a [u8],
+        ciphertext: &'a [u8],
+        plaintext: &'a mut [u8],
+        tag: &'a [u8; 16],
+    },
     P256Keygen {
         secret_key: &'a mut [u8; 32],
         public_key: &'a mut [u8; 64],
@@ -352,6 +384,12 @@ impl BlockingOp<'_> {
             }
             Self::AesCcm8_128Encrypt { .. } | Self::AesCcm8_128Decrypt { .. } => {
                 Capabilities::AES_128_CCM8
+            }
+            Self::AesGcm128Encrypt { .. } | Self::AesGcm128Decrypt { .. } => {
+                Capabilities::AES_128_GCM
+            }
+            Self::AesGcm256Encrypt { .. } | Self::AesGcm256Decrypt { .. } => {
+                Capabilities::AES_256_GCM
             }
             Self::P256Keygen { .. } => Capabilities::P256_KEYGEN,
             Self::P256Ecdh { .. } => Capabilities::P256_ECDH,
@@ -469,6 +507,38 @@ impl<T: BlockingCryptoDriver> BlockingDispatcher for T {
                 plaintext,
                 tag,
             } => self.blocking_aes_ccm8_128_decrypt(key, nonce, aad, ciphertext, plaintext, tag),
+            BlockingOp::AesGcm128Encrypt {
+                key,
+                nonce,
+                aad,
+                plaintext,
+                ciphertext,
+                tag,
+            } => self.blocking_aes_gcm_128_encrypt(key, nonce, aad, plaintext, ciphertext, tag),
+            BlockingOp::AesGcm128Decrypt {
+                key,
+                nonce,
+                aad,
+                ciphertext,
+                plaintext,
+                tag,
+            } => self.blocking_aes_gcm_128_decrypt(key, nonce, aad, ciphertext, plaintext, tag),
+            BlockingOp::AesGcm256Encrypt {
+                key,
+                nonce,
+                aad,
+                plaintext,
+                ciphertext,
+                tag,
+            } => self.blocking_aes_gcm_256_encrypt(key, nonce, aad, plaintext, ciphertext, tag),
+            BlockingOp::AesGcm256Decrypt {
+                key,
+                nonce,
+                aad,
+                ciphertext,
+                plaintext,
+                tag,
+            } => self.blocking_aes_gcm_256_decrypt(key, nonce, aad, ciphertext, plaintext, tag),
             BlockingOp::P256Keygen {
                 secret_key,
                 public_key,

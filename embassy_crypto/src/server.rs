@@ -151,6 +151,10 @@ impl CryptoServer<'_> {
     impl_blocking_op!(blocking_aes_ccm_128_decrypt, AesCcm128Decrypt, [key: &[u8; 16], nonce: &[u8], aad: &[u8], ciphertext: &[u8], plaintext: &mut [u8], tag: &[u8; 16]]);
     impl_blocking_op!(blocking_aes_ccm8_128_encrypt, AesCcm8_128Encrypt, [key: &[u8; 16], nonce: &[u8], aad: &[u8], plaintext: &[u8], ciphertext: &mut [u8], tag: &mut [u8; 8]]);
     impl_blocking_op!(blocking_aes_ccm8_128_decrypt, AesCcm8_128Decrypt, [key: &[u8; 16], nonce: &[u8], aad: &[u8], ciphertext: &[u8], plaintext: &mut [u8], tag: &[u8; 8]]);
+    impl_blocking_op!(blocking_aes_gcm_128_encrypt, AesGcm128Encrypt, [key: &[u8; 16], nonce: &[u8], aad: &[u8], plaintext: &[u8], ciphertext: &mut [u8], tag: &mut [u8; 16]]);
+    impl_blocking_op!(blocking_aes_gcm_128_decrypt, AesGcm128Decrypt, [key: &[u8; 16], nonce: &[u8], aad: &[u8], ciphertext: &[u8], plaintext: &mut [u8], tag: &[u8; 16]]);
+    impl_blocking_op!(blocking_aes_gcm_256_encrypt, AesGcm256Encrypt, [key: &[u8; 32], nonce: &[u8], aad: &[u8], plaintext: &[u8], ciphertext: &mut [u8], tag: &mut [u8; 16]]);
+    impl_blocking_op!(blocking_aes_gcm_256_decrypt, AesGcm256Decrypt, [key: &[u8; 32], nonce: &[u8], aad: &[u8], ciphertext: &[u8], plaintext: &mut [u8], tag: &[u8; 16]]);
     impl_blocking_op!(blocking_p256_keygen, P256Keygen, [secret_key: &mut [u8; 32], public_key: &mut [u8; 64]]);
     impl_blocking_op!(blocking_p256_ecdh, P256Ecdh, [secret_key: &[u8; 32], public_key: &[u8; 64], shared_secret: &mut [u8; 32]]);
     impl_blocking_op!(blocking_p256_ecdsa_sign, P256EcdsaSign, [secret_key: &[u8; 32], digest: &[u8; 32], signature: &mut [u8; 64]]);

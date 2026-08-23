@@ -72,6 +72,50 @@ pub trait BlockingCryptoDriver {
     ) -> Result<(), CryptoError> {
         Err(CryptoError::Unsupported)
     }
+    fn blocking_aes_gcm_128_encrypt(
+        &mut self,
+        _key: &[u8; 16],
+        _nonce: &[u8],
+        _aad: &[u8],
+        _plaintext: &[u8],
+        _ciphertext: &mut [u8],
+        _tag: &mut [u8; 16],
+    ) -> Result<(), CryptoError> {
+        Err(CryptoError::Unsupported)
+    }
+    fn blocking_aes_gcm_128_decrypt(
+        &mut self,
+        _key: &[u8; 16],
+        _nonce: &[u8],
+        _aad: &[u8],
+        _ciphertext: &[u8],
+        _plaintext: &mut [u8],
+        _tag: &[u8; 16],
+    ) -> Result<(), CryptoError> {
+        Err(CryptoError::Unsupported)
+    }
+    fn blocking_aes_gcm_256_encrypt(
+        &mut self,
+        _key: &[u8; 32],
+        _nonce: &[u8],
+        _aad: &[u8],
+        _plaintext: &[u8],
+        _ciphertext: &mut [u8],
+        _tag: &mut [u8; 16],
+    ) -> Result<(), CryptoError> {
+        Err(CryptoError::Unsupported)
+    }
+    fn blocking_aes_gcm_256_decrypt(
+        &mut self,
+        _key: &[u8; 32],
+        _nonce: &[u8],
+        _aad: &[u8],
+        _ciphertext: &[u8],
+        _plaintext: &mut [u8],
+        _tag: &[u8; 16],
+    ) -> Result<(), CryptoError> {
+        Err(CryptoError::Unsupported)
+    }
     fn blocking_p256_keygen(
         &mut self,
         _secret_key: &mut [u8; 32],
