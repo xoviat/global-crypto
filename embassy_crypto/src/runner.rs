@@ -75,6 +75,11 @@ pub struct CryptoRunner<Drivers, const T: usize> {
     drivers: Drivers,
     driver_slots: [DriverSlot; MAX_DRIVERS],
     num_drivers: usize,
+    /// Pre-computed capabilities for each driver slot (index 0..num_drivers-1).
+    ///
+    /// Populated at construction time so the blocking fast-path can skip
+    /// `try_lock()` on drivers that do not advertise the required capability.
+    driver_caps: [Capabilities; MAX_DRIVERS],
     op_table: OpTable<T>,
     context_table: ContextTable<MAX_CONTEXTS>,
     rng_pipe: UnsafeCell<Pipe<CriticalSectionRawMutex, 256>>,
@@ -254,15 +259,18 @@ macro_rules! impl_crypto_runner {
         > {
             pub fn new(drivers: ($($T,)+)) -> Self {
                 let driver_slots = [const { DriverSlot::new(Capabilities(0)) }; MAX_DRIVERS];
+                let mut driver_caps = [Capabilities(0); MAX_DRIVERS];
                 let num_drivers = {
                     let mut n = 0usize;
                     $({ n += 1; let _ = $idx; })+
                     n
                 };
+                $({ driver_caps[$idx] = drivers.$idx.capabilities(); })+
                 Self {
                     drivers: ($(Mutex::<CriticalSectionRawMutex, _>::new(drivers.$idx),)+),
                     driver_slots,
                     num_drivers,
+                    driver_caps,
                     op_table: OpTable::new(),
                     context_table: ContextTable::new(),
                     rng_pipe: UnsafeCell::new(Pipe::new()),
@@ -274,8 +282,8 @@ macro_rules! impl_crypto_runner {
                 let mut temp = [0u8; 256];
                 loop {
                     $({
-                        if let Ok(mut guard) = self.drivers.$idx.try_lock() {
-                            if guard.capabilities().contains(Capabilities::RNG) {
+                        if self.driver_caps[$idx].contains(Capabilities::RNG) {
+                            if let Ok(mut guard) = self.drivers.$idx.try_lock() {
                                 if (&mut *guard).fill_rng_async(&mut temp).await.is_ok() {
                                     let pipe = unsafe { &mut *self.rng_pipe.get() };
                                     let mut written = 0;
@@ -316,8 +324,8 @@ macro_rules! impl_crypto_runner {
                 f: &mut dyn FnMut(&mut dyn BlockingCryptoDriver) -> Result<(), CryptoError>,
             ) -> Option<Result<(), CryptoError>> {
                 $({
-                    if let Ok(mut guard) = self.drivers.$idx.try_lock() {
-                        if guard.capabilities().contains(required) {
+                    if self.driver_caps[$idx].contains(required) {
+                        if let Ok(mut guard) = self.drivers.$idx.try_lock() {
                             return Some(f(&mut *guard));
                         }
                     }
@@ -331,8 +339,8 @@ macro_rules! impl_crypto_runner {
                 f: &mut dyn FnMut(&mut dyn BlockingCryptoDriver) -> Result<usize, CryptoError>,
             ) -> Option<Result<usize, CryptoError>> {
                 $({
-                    if let Ok(mut guard) = self.drivers.$idx.try_lock() {
-                        if guard.capabilities().contains(required) {
+                    if self.driver_caps[$idx].contains(required) {
+                        if let Ok(mut guard) = self.drivers.$idx.try_lock() {
                             return Some(f(&mut *guard));
                         }
                     }
@@ -343,10 +351,11 @@ macro_rules! impl_crypto_runner {
             fn try_context_init(&self, op: Algorithm) -> Result<ContextHandle, CryptoError> {
                 let handle = self.context_table.alloc()
                     .ok_or(CryptoError::HardwareError)?;
+                let required = op.required_caps();
 
                 $({
-                    if let Ok(mut guard) = self.drivers.$idx.try_lock() {
-                        if guard.capabilities().contains(op.required_caps()) {
+                    if self.driver_caps[$idx].contains(required) {
+                        if let Ok(mut guard) = self.drivers.$idx.try_lock() {
                             let ctx = unsafe { &mut *self.context_table.ctx_mut(handle) };
                             guard.blocking_hash_init(op, ctx)?;
                             unsafe {
