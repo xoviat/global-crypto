@@ -15,11 +15,14 @@ use embassy_crypto_driver::{
 
 use crate::queue::{ContextHandle, ContextTable, OpHandle, OpOutput, OpTable};
 
-/// Maximum number of drivers supported by CryptoRunner.
+/// Maximum number of hardware drivers supported by CryptoRunner.
 pub const MAX_DRIVERS: usize = 5;
 
 /// Maximum number of concurrent streaming hash contexts.
 pub const MAX_CONTEXTS: usize = 4;
+
+/// Sentinel index stored in ContextTable to indicate the software driver.
+const SOFTWARE_DRIVER_IDX: usize = MAX_DRIVERS;
 
 /// A future that yields once without self-waking.
 ///
@@ -67,15 +70,18 @@ impl DriverSlot {
     }
 }
 
-/// Hardware crypto multiplexer.
+/// Hardware crypto multiplexer with software fallback for blocking operations.
 ///
 /// `Drivers` is a tuple of `Mutex<CriticalSectionRawMutex, D>` instances.
-/// `T` is the maximum number of in-flight ops.
-pub struct CryptoRunner<Drivers, const T: usize> {
-    drivers: Drivers,
+/// `S` is a `Copy + BlockingCryptoDriver` used as a fallback for blocking ops.
+/// `T` is the maximum number of in-flight async ops.
+pub struct CryptoRunner<Drivers, S, const T: usize> {
+    hardware: Drivers,
+    software: S,
+    software_caps: Capabilities,
     driver_slots: [DriverSlot; MAX_DRIVERS],
     num_drivers: usize,
-    /// Pre-computed capabilities for each driver slot (index 0..num_drivers-1).
+    /// Pre-computed capabilities for each hardware driver slot (index 0..num_drivers-1).
     ///
     /// Populated at construction time so the blocking fast-path can skip
     /// `try_lock()` on drivers that do not advertise the required capability.
@@ -180,7 +186,7 @@ async fn driver_worker<D: CryptoDriver, const T: usize>(
     }
 }
 
-/// Broadcast-wake all drivers capable of handling the given operation.
+/// Broadcast-wake all hardware drivers capable of handling the given operation.
 fn wake_capable(caps: Capabilities, slots: &[DriverSlot], num_drivers: usize) {
     for slot in slots.iter().take(num_drivers) {
         if slot.caps.contains(caps) {
@@ -678,11 +684,12 @@ pub(crate) trait RunnerBackend {
 
 macro_rules! impl_crypto_runner {
       ($($idx:tt => $T:ident),+) => {
-        impl<$($T: CryptoDriver),+, const T: usize> CryptoRunner<
+        impl<$($T: CryptoDriver),+, S: Copy + BlockingCryptoDriver, const T: usize> CryptoRunner<
             ($(Mutex<CriticalSectionRawMutex, $T>,)+),
+            S,
             T,
         > {
-            pub fn new(drivers: ($($T,)+)) -> Self {
+            pub fn new(hardware: ($($T,)+), software: S) -> Self {
                 let driver_slots = [const { DriverSlot::new(Capabilities(0)) }; MAX_DRIVERS];
                 let mut driver_caps = [Capabilities(0); MAX_DRIVERS];
                 let num_drivers = {
@@ -690,9 +697,11 @@ macro_rules! impl_crypto_runner {
                     $({ n += 1; let _ = $idx; })+
                     n
                 };
-                $({ driver_caps[$idx] = drivers.$idx.capabilities(); })+
+                $({ driver_caps[$idx] = hardware.$idx.capabilities(); })+
                 Self {
-                    drivers: ($(Mutex::<CriticalSectionRawMutex, _>::new(drivers.$idx),)+),
+                    hardware: ($(Mutex::<CriticalSectionRawMutex, _>::new(hardware.$idx),)+),
+                    software,
+                    software_caps: software.capabilities(),
                     driver_slots,
                     num_drivers,
                     driver_caps,
@@ -702,13 +711,13 @@ macro_rules! impl_crypto_runner {
                 }
             }
 
-            /// Refill the RNG pipe asynchronously.
+            /// Refill the RNG pipe asynchronously from hardware drivers only.
             async fn rng_refill(&self) {
                 let mut temp = [0u8; 256];
                 loop {
                     $({
                         if self.driver_caps[$idx].contains(Capabilities::RNG) {
-                            if let Ok(mut guard) = self.drivers.$idx.try_lock() {
+                            if let Ok(mut guard) = self.hardware.$idx.try_lock() {
                                 if (&mut *guard).fill_rng_async(&mut temp).await.is_ok() {
                                     let pipe = unsafe { &mut *self.rng_pipe.get() };
                                     let mut written = 0;
@@ -726,14 +735,16 @@ macro_rules! impl_crypto_runner {
                 }
             }
 
-            /// Run all driver workers concurrently.
+            /// Run all hardware driver workers concurrently.
             ///
+            /// Software fallback is NOT used for async operations;
+            /// callers must manually fall back to blocking methods.
             /// This method never returns.
             #[allow(unreachable_code)]
             pub async fn run(&self) -> ! {
                 join_n!(
                     self.rng_refill(),
-                    $(driver_worker(&self.drivers.$idx, &self.driver_slots[$idx], &self.op_table)),+
+                    $(driver_worker(&self.hardware.$idx, &self.driver_slots[$idx], &self.op_table)),+
                 ).await;
 
                 unreachable!();
@@ -744,20 +755,26 @@ macro_rules! impl_crypto_runner {
                 crate::server::CryptoServer { backend: self }
             }
         }
-        impl<$($T: CryptoDriver),+, const T: usize> RunnerBackend
-            for CryptoRunner<($(Mutex<CriticalSectionRawMutex, $T>,)+), T>
+        impl<$($T: CryptoDriver),+, S: Copy + BlockingCryptoDriver, const T: usize> RunnerBackend
+            for CryptoRunner<($(Mutex<CriticalSectionRawMutex, $T>,)+), S, T>
         {
             fn dispatch_blocking(
                 &self,
                 op: crate::runner::BlockingOp<'_>,
             ) -> Option<Result<(), CryptoError>> {
+                // 1. Try all hardware drivers first.
                 $({
                     if self.driver_caps[$idx].contains(op.required_caps()) {
-                        if let Ok(mut guard) = self.drivers.$idx.try_lock() {
+                        if let Ok(mut guard) = self.hardware.$idx.try_lock() {
                             return Some(guard.dispatch(op));
                         }
                     }
                 })+
+                // 2. Hardware busy or missing → try software fallback.
+                if !matches!(op, BlockingOp::RngFill { .. }) && self.software_caps.contains(op.required_caps()) {
+                    let mut software = self.software;
+                    return Some(software.dispatch(op));
+                }
                 None
             }
 
@@ -765,13 +782,19 @@ macro_rules! impl_crypto_runner {
                 &self,
                 op: crate::runner::BlockingOpSize<'_>,
             ) -> Option<Result<usize, CryptoError>> {
+                // 1. Try all hardware drivers first.
                 $({
                     if self.driver_caps[$idx].contains(op.required_caps()) {
-                        if let Ok(mut guard) = self.drivers.$idx.try_lock() {
+                        if let Ok(mut guard) = self.hardware.$idx.try_lock() {
                             return Some(guard.dispatch_size(op));
                         }
                     }
                 })+
+                // 2. Hardware busy or missing → try software fallback.
+                if self.software_caps.contains(op.required_caps()) {
+                    let mut software = self.software;
+                    return Some(software.dispatch_size(op));
+                }
                 None
             }
 
@@ -780,9 +803,10 @@ macro_rules! impl_crypto_runner {
                     .ok_or(CryptoError::HardwareError)?;
                 let required = op.required_caps();
 
+                // 1. Try hardware drivers.
                 $({
                     if self.driver_caps[$idx].contains(required) {
-                        if let Ok(mut guard) = self.drivers.$idx.try_lock() {
+                        if let Ok(mut guard) = self.hardware.$idx.try_lock() {
                             let ctx = unsafe { &mut *self.context_table.ctx_mut(handle) };
                             guard.blocking_hash_init(op, ctx)?;
                             unsafe {
@@ -792,6 +816,17 @@ macro_rules! impl_crypto_runner {
                         }
                     }
                 })+
+
+                // 2. Fallback to software.
+                if self.software_caps.contains(required) {
+                    let mut software = self.software;
+                    let ctx = unsafe { &mut *self.context_table.ctx_mut(handle) };
+                    software.blocking_hash_init(op, ctx)?;
+                    unsafe {
+                        self.context_table.set_driver_idx(handle, SOFTWARE_DRIVER_IDX);
+                    }
+                    return Ok(handle);
+                }
 
                 self.context_table.free(handle);
                 Err(CryptoError::HardwareError)
@@ -806,9 +841,10 @@ macro_rules! impl_crypto_runner {
                     .ok_or(CryptoError::HardwareError)?;
                 let required = op.required_caps();
 
+                // 1. Try hardware drivers.
                 $({
                     if self.driver_caps[$idx].contains(required) {
-                        if let Ok(mut guard) = self.drivers.$idx.try_lock() {
+                        if let Ok(mut guard) = self.hardware.$idx.try_lock() {
                             let ctx = unsafe { &mut *self.context_table.ctx_mut(handle) };
                             guard.blocking_hmac_init(op, key, ctx)?;
                             unsafe {
@@ -819,6 +855,17 @@ macro_rules! impl_crypto_runner {
                     }
                 })+
 
+                // 2. Fallback to software.
+                if self.software_caps.contains(required) {
+                    let mut software = self.software;
+                    let ctx = unsafe { &mut *self.context_table.ctx_mut(handle) };
+                    software.blocking_hmac_init(op, key, ctx)?;
+                    unsafe {
+                        self.context_table.set_driver_idx(handle, SOFTWARE_DRIVER_IDX);
+                    }
+                    return Ok(handle);
+                }
+
                 self.context_table.free(handle);
                 Err(CryptoError::HardwareError)
             }
@@ -827,13 +874,20 @@ macro_rules! impl_crypto_runner {
                 let driver_idx = unsafe { self.context_table.driver_idx(handle) };
                 let ctx = unsafe { &mut *self.context_table.ctx_mut(handle) };
 
+                // Route to the hardware driver that owns this context.
                 $({
                     if driver_idx == $idx {
-                        if let Ok(mut guard) = self.drivers.$idx.try_lock() {
+                        if let Ok(mut guard) = self.hardware.$idx.try_lock() {
                             return guard.blocking_hash_update(op, ctx, data);
                         }
                     }
                 })+
+
+                // Software fallback context.
+                if driver_idx == SOFTWARE_DRIVER_IDX {
+                    let mut software = self.software;
+                    return software.blocking_hash_update(op, ctx, data);
+                }
 
                 Err(CryptoError::HardwareError)
             }
@@ -842,9 +896,10 @@ macro_rules! impl_crypto_runner {
                 let driver_idx = unsafe { self.context_table.driver_idx(handle) };
                 let ctx = unsafe { &mut *self.context_table.ctx_mut(handle) };
 
+                // Route to the hardware driver that owns this context.
                 $({
                     if driver_idx == $idx {
-                        if let Ok(mut guard) = self.drivers.$idx.try_lock() {
+                        if let Ok(mut guard) = self.hardware.$idx.try_lock() {
                             let result = guard.blocking_hash_finalize(op, ctx, out);
                             self.context_table.free(handle);
                             return result;
@@ -852,11 +907,29 @@ macro_rules! impl_crypto_runner {
                     }
                 })+
 
+                // Software fallback context.
+                if driver_idx == SOFTWARE_DRIVER_IDX {
+                    let mut software = self.software;
+                    let result = software.blocking_hash_finalize(op, ctx, out);
+                    self.context_table.free(handle);
+                    return result;
+                }
+
                 self.context_table.free(handle);
                 Err(CryptoError::HardwareError)
             }
 
+            /// Schedule an async operation. Hardware-only; no software fallback.
+            ///
+            /// If no hardware driver advertises the required capability,
+            /// returns `HardwareError` immediately so the caller can fall
+            /// back to the corresponding blocking method.
             fn schedule(&self, kind: crate::queue::OpKind) -> Result<OpHandle, CryptoError> {
+                let required = kind.required_caps();
+                let has_hardware = $(self.driver_caps[$idx].contains(required) ||)+ false;
+                if !has_hardware {
+                    return Err(CryptoError::HardwareError);
+                }
                 let handle = self.op_table.alloc(kind).ok_or(CryptoError::HardwareError)?;
                 wake_capable(kind.required_caps(), &self.driver_slots, self.num_drivers);
                 Ok(handle)
@@ -887,7 +960,7 @@ macro_rules! impl_crypto_runner {
     };
 }
 
-// Generate implementations for 1 through 5 drivers.
+// Generate implementations for 1 through 5 hardware drivers.
 impl_crypto_runner!(0 => T0);
 impl_crypto_runner!(0 => T0, 1 => T1);
 impl_crypto_runner!(0 => T0, 1 => T1, 2 => T2);
