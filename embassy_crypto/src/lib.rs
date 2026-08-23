@@ -11,6 +11,7 @@ use embassy_crypto_driver::{
     Algorithm, BlockingCryptoDriver, Capabilities, CryptoDriver, CryptoError, HashContext,
 };
 
+#[derive(Clone, Copy)]
 pub struct MockDriver;
 
 impl BlockingCryptoDriver for MockDriver {
@@ -582,8 +583,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_single_driver() {
-        let runner = runner::CryptoRunner::<(Mutex<CriticalSectionRawMutex, MockDriver>,), 16>::new(
+        let runner = runner::CryptoRunner::<(Mutex<CriticalSectionRawMutex, MockDriver>,), MockDriver, 16>::new(
             (MockDriver,),
+            MockDriver,
         );
         let server = runner.server();
 
@@ -605,8 +607,9 @@ mod tests {
                 Mutex<CriticalSectionRawMutex, MockDriver>,
                 Mutex<CriticalSectionRawMutex, MockDriver>,
             ),
+            MockDriver,
             16,
-        >::new((MockDriver, MockDriver));
+        >::new((MockDriver, MockDriver), MockDriver);
         let server = runner.server();
 
         let mut out = [0u8; 32];
@@ -618,8 +621,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_streaming_sha256() {
-        let runner = runner::CryptoRunner::<(Mutex<CriticalSectionRawMutex, MockDriver>,), 16>::new(
+        let runner = runner::CryptoRunner::<(Mutex<CriticalSectionRawMutex, MockDriver>,), MockDriver, 16>::new(
             (MockDriver,),
+            MockDriver,
         );
         let server = runner.server();
 
