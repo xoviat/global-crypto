@@ -3,8 +3,10 @@ use core::future::poll_fn;
 use core::pin::Pin;
 use core::task::{Context, Poll};
 
+use core::cell::UnsafeCell;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::mutex::Mutex;
+use embassy_sync::pipe::Pipe;
 use embassy_sync::waitqueue::AtomicWaker;
 
 use embassy_crypto_driver::{
@@ -65,55 +67,6 @@ impl DriverSlot {
     }
 }
 
-/// Ring buffer for pre-fetched RNG bytes.
-pub struct RngBuffer {
-    buf: [u8; 256],
-    head: usize,
-    len: usize,
-}
-
-impl Default for RngBuffer {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl RngBuffer {
-    pub const fn new() -> Self {
-        Self {
-            buf: [0; 256],
-            head: 0,
-            len: 0,
-        }
-    }
-    pub fn drain(&mut self, dest: &mut [u8]) -> usize {
-        let n = dest.len().min(self.len);
-        for byte in dest.iter_mut().take(n) {
-            *byte = self.buf[self.head];
-            self.head = (self.head + 1) % 256;
-        }
-        self.len -= n;
-        n
-    }
-    pub fn fill(&mut self, src: &[u8]) -> usize {
-        let space = 256 - self.len;
-        let n = src.len().min(space);
-        let mut tail = (self.head + self.len) % 256;
-        for byte in src.iter().take(n) {
-            self.buf[tail] = *byte;
-            tail = (tail + 1) % 256;
-        }
-        self.len += n;
-        n
-    }
-    pub fn len(&self) -> usize {
-        self.len
-    }
-    pub fn is_empty(&self) -> bool {
-        self.len == 0
-    }
-}
-
 /// Hardware crypto multiplexer.
 ///
 /// `Drivers` is a tuple of `Mutex<CriticalSectionRawMutex, D>` instances.
@@ -124,7 +77,7 @@ pub struct CryptoRunner<Drivers, const T: usize> {
     num_drivers: usize,
     op_table: OpTable<T>,
     context_table: ContextTable<MAX_CONTEXTS>,
-    rng_buffer: Mutex<CriticalSectionRawMutex, RngBuffer>,
+    rng_pipe: UnsafeCell<Pipe<CriticalSectionRawMutex, 256>>,
 }
 
 /// Per-driver worker future. Scans the OpTable for PENDING ops it can handle.
@@ -312,35 +265,27 @@ macro_rules! impl_crypto_runner {
                     num_drivers,
                     op_table: OpTable::new(),
                     context_table: ContextTable::new(),
-                    rng_buffer: Mutex::new(RngBuffer::new()),
+                    rng_pipe: UnsafeCell::new(Pipe::new()),
                 }
             }
 
-            /// Refill the RNG buffer asynchronously.
+            /// Refill the RNG pipe asynchronously.
             async fn rng_refill(&self) {
                 let mut temp = [0u8; 256];
                 loop {
-                    let need_refill = {
-                        if let Ok(buf) = self.rng_buffer.try_lock() {
-                            buf.len() < 128
-                        } else {
-                            false
-                        }
-                    };
-                    if need_refill {
-                        $({
-                            if let Ok(mut guard) = self.drivers.$idx.try_lock() {
-                                if guard.capabilities().contains(Capabilities::RNG) {
-                                    if (&mut *guard).fill_rng_async(&mut temp).await.is_ok() {
-                                        if let Ok(mut buf) = self.rng_buffer.try_lock() {
-                                            buf.fill(&temp);
-                                        }
+                    $({
+                        if let Ok(mut guard) = self.drivers.$idx.try_lock() {
+                            if guard.capabilities().contains(Capabilities::RNG) {
+                                if (&mut *guard).fill_rng_async(&mut temp).await.is_ok() {
+                                    let pipe = unsafe { &mut *self.rng_pipe.get() };
+                                    let mut written = 0;
+                                    while written < temp.len() {
+                                        written += pipe.write(&temp[written..]).await;
                                     }
                                 }
                             }
-                        })+
-                    }
-                    yield_now().await;
+                        }
+                    })+
                 }
             }
 
@@ -465,13 +410,16 @@ macro_rules! impl_crypto_runner {
             }
 
             fn try_rng_fill(&self, dest: &mut [u8]) -> Option<Result<(), CryptoError>> {
-                if let Ok(mut buf) = self.rng_buffer.try_lock() {
-                    if buf.len() >= dest.len() {
-                        buf.drain(dest);
-                        return Some(Ok(()));
+                let pipe = unsafe { &mut *self.rng_pipe.get() };
+                if pipe.len() >= dest.len() {
+                    let mut total = 0;
+                    while total < dest.len() {
+                        total += pipe.try_read(&mut dest[total..]).ok()?;
                     }
+                    Some(Ok(()))
+                } else {
+                    None
                 }
-                None
             }
         }
     };
