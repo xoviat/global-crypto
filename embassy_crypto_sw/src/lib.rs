@@ -17,7 +17,7 @@
 //! - RNG fill (security: never silently substitute software RNG for hardware)
 
 use embassy_crypto_driver::{
-    BlockingCryptoDriver, Capabilities, CryptoError,
+    Algorithm, BlockingCryptoDriver, Capabilities, CryptoError, HashContext,
 };
 
 // AES block cipher
@@ -38,7 +38,7 @@ use aes::cipher::typenum::{U13, U16, U8};
 
 // CMAC
 use cmac::Cmac;
-use digest::Mac;
+use digest::{Digest, Mac, Update};
 
 // P-256 / P-384
 use p256::ecdsa::{
@@ -50,6 +50,10 @@ use p384::ecdsa::{
     VerifyingKey as P384VerifyingKey,
 };
 use signature::hazmat::{PrehashSigner, PrehashVerifier};
+
+// Compile-time assert that RustCrypto Sha256 fits in HashContext.
+const _: () = assert!(core::mem::size_of::<sha2::Sha256>() <= 256);
+
 
 /// Zero-sized software crypto driver.
 ///
@@ -109,7 +113,7 @@ impl BlockingCryptoDriver for SwDriver {
     ) -> Result<(), CryptoError> {
         let mut mac = <Cmac<Aes128> as Mac>::new_from_slice(key.as_slice())
             .map_err(|_| CryptoError::InvalidKey)?;
-        mac.update(data);
+        Mac::update(&mut mac, data);
         let result = mac.finalize();
         out.copy_from_slice(result.into_bytes().as_slice());
         Ok(())
@@ -457,5 +461,71 @@ impl BlockingCryptoDriver for SwDriver {
             .verify_prehash(digest.as_slice(), &sig)
             .map_err(|_| CryptoError::InvalidSignature)?;
         Ok(())
+    }
+
+    // ------------------------------------------------------------------
+    // Hash streaming (SHA-256 only — fits in 128-byte HashContext)
+    // ------------------------------------------------------------------
+    fn blocking_hash_init(
+        &mut self,
+        op: Algorithm,
+        ctx: &mut HashContext,
+    ) -> Result<(), CryptoError> {
+        match op {
+            Algorithm::SHA256 => {
+                let hasher = sha2::Sha256::new();
+                unsafe {
+                    core::ptr::write(ctx.0.as_mut_ptr() as *mut sha2::Sha256, hasher);
+                }
+                Ok(())
+            }
+            _ => Err(CryptoError::Unsupported),
+        }
+    }
+
+    fn blocking_hash_update(
+        &mut self,
+        op: Algorithm,
+        ctx: &mut HashContext,
+        data: &[u8],
+    ) -> Result<(), CryptoError> {
+        match op {
+            Algorithm::SHA256 => {
+                let hasher = unsafe { &mut *(ctx.0.as_mut_ptr() as *mut sha2::Sha256) };
+                digest::Update::update(hasher, data);
+                Ok(())
+            }
+            _ => Err(CryptoError::Unsupported),
+        }
+    }
+
+    fn blocking_hash_finalize(
+        &mut self,
+        op: Algorithm,
+        ctx: &mut HashContext,
+        out: &mut [u8],
+    ) -> Result<(), CryptoError> {
+        match op {
+            Algorithm::SHA256 => {
+                let hasher = unsafe { &*(ctx.0.as_ptr() as *const sha2::Sha256) };
+                let cloned = hasher.clone();
+                let mut ga = digest::Output::<sha2::Sha256>::default();
+                digest::FixedOutput::finalize_into(cloned, &mut ga);
+                out.copy_from_slice(ga.as_slice());
+                Ok(())
+            }
+            _ => Err(CryptoError::Unsupported),
+        }
+    }
+
+    fn blocking_hmac_init(
+        &mut self,
+        _op: Algorithm,
+        _key: &[u8],
+        _ctx: &mut HashContext,
+    ) -> Result<(), CryptoError> {
+        // HMAC requires two hash states (~208 bytes for HMAC-SHA256).
+        // HashContext is only 128 bytes — unsupported without framework change.
+        Err(CryptoError::Unsupported)
     }
 }

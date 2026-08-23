@@ -259,6 +259,7 @@ dependencies = [
  "embassy_crypto_driver",
  "p256",
  "p384",
+ "sha2",
  "signature",
 ]
 

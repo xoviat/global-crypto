@@ -165,10 +165,10 @@ impl Algorithm {
 /// The size (128 bytes) is large enough for common software and hardware
 /// SHA-256 and hardware SHA-384 contexts.
 #[derive(Clone, Copy)]
-pub struct HashContext(pub [u8; 128]);
+pub struct HashContext(pub [u8; 256]);
 
 impl Default for HashContext {
     fn default() -> Self {
-        Self([0u8; 128])
+        Self([0u8; 256])
     }
 }
