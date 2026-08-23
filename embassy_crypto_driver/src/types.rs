@@ -152,9 +152,6 @@ impl Algorithm {
 #[derive(Clone, Copy)]
 pub struct HashContext(pub [u8; 128]);
 
-/// Backwards-compatible alias.
-pub type Sha256Context = HashContext;
-
 impl Default for HashContext {
     fn default() -> Self {
         Self([0u8; 128])

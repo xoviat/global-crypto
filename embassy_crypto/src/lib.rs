@@ -499,8 +499,10 @@ mod tests {
         assert_eq!(buf, [0xAB; 32]);
 
         let mut out = [0u8; 32];
-        server.sha_256(b"hello", &mut out).await.unwrap();
-        assert_eq!(out, [0x40; 32]);
+        let ctx = server.sha256_init().unwrap();
+        server.sha256_update(ctx, b"hello").unwrap();
+        server.sha256_finalize(ctx, &mut out).unwrap();
+        assert_eq!(out, [0x0A; 32]);
     }
 
     #[tokio::test]
@@ -515,8 +517,10 @@ mod tests {
         let server = runner.server();
 
         let mut out = [0u8; 32];
-        server.sha_256(b"world", &mut out).await.unwrap();
-        assert_eq!(out, [0x40; 32]);
+        let ctx = server.sha256_init().unwrap();
+        server.sha256_update(ctx, b"world").unwrap();
+        server.sha256_finalize(ctx, &mut out).unwrap();
+        assert_eq!(out, [0x0A; 32]);
     }
 
     #[tokio::test]
