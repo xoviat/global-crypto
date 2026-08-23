@@ -172,16 +172,6 @@ impl CryptoServer<'_> {
     // ------------------------------------------------------------------
     // Async constructors
     // ------------------------------------------------------------------
-    async_op_ctor!(aes_gcm_128_encrypt, AesGcm128EncryptFuture, [key: &'a [u8; 16], nonce: &'a [u8], aad: &'a [u8], plaintext: &'a [u8], ciphertext: &'a mut [u8], tag: &'a mut [u8; 16]]);
-    async_op_ctor!(aes_gcm_128_decrypt, AesGcm128DecryptFuture, [key: &'a [u8; 16], nonce: &'a [u8], aad: &'a [u8], ciphertext: &'a [u8], plaintext: &'a mut [u8], tag: &'a [u8; 16]]);
-    async_op_ctor!(aes_gcm_256_encrypt, AesGcm256EncryptFuture, [key: &'a [u8; 32], nonce: &'a [u8], aad: &'a [u8], plaintext: &'a [u8], ciphertext: &'a mut [u8], tag: &'a mut [u8; 16]]);
-    async_op_ctor!(aes_gcm_256_decrypt, AesGcm256DecryptFuture, [key: &'a [u8; 32], nonce: &'a [u8], aad: &'a [u8], ciphertext: &'a [u8], plaintext: &'a mut [u8], tag: &'a [u8; 16]]);
-    async_op_ctor!(aes_ccm_128_encrypt, AesCcm128EncryptFuture, [key: &'a [u8; 16], nonce: &'a [u8], aad: &'a [u8], plaintext: &'a [u8], ciphertext: &'a mut [u8], tag: &'a mut [u8; 16]]);
-    async_op_ctor!(aes_ccm_128_decrypt, AesCcm128DecryptFuture, [key: &'a [u8; 16], nonce: &'a [u8], aad: &'a [u8], ciphertext: &'a [u8], plaintext: &'a mut [u8], tag: &'a [u8; 16]]);
-    async_op_ctor!(aes_ccm8_128_encrypt, AesCcm8_128EncryptFuture, [key: &'a [u8; 16], nonce: &'a [u8], aad: &'a [u8], plaintext: &'a [u8], ciphertext: &'a mut [u8], tag: &'a mut [u8; 8]]);
-    async_op_ctor!(aes_ccm8_128_decrypt, AesCcm8_128DecryptFuture, [key: &'a [u8; 16], nonce: &'a [u8], aad: &'a [u8], ciphertext: &'a [u8], plaintext: &'a mut [u8], tag: &'a [u8; 8]]);
-    async_op_ctor!(sha_256, Sha256Future, [data: &'a [u8], out: &'a mut [u8; 32]]);
-    async_op_ctor!(sha_384, Sha384Future, [data: &'a [u8], out: &'a mut [u8; 48]]);
     async_op_ctor!(p256_keygen, P256KeygenFuture, [secret_key: &'a mut [u8; 32], public_key: &'a mut [u8; 64]]);
     async_op_ctor!(p256_ecdh, P256EcdhFuture, [secret_key: &'a [u8; 32], public_key: &'a [u8; 64], shared_secret: &'a mut [u8; 32]]);
     async_op_ctor!(p256_ecdsa_sign, P256EcdsaSignFuture, [secret_key: &'a [u8; 32], digest: &'a [u8; 32], signature: &'a mut [u8; 64]]);
@@ -255,16 +245,6 @@ impl CryptoServer<'_> {
 // ------------------------------------------------------------------
 // Async future types (unit output)
 // ------------------------------------------------------------------
-impl_async_op!(AesGcm128EncryptFuture, AesGcm128Encrypt, [key: &'a [u8; 16], nonce: &'a [u8], aad: &'a [u8], plaintext: &'a [u8], ciphertext: &'a mut [u8], tag: &'a mut [u8; 16]]);
-impl_async_op!(AesGcm128DecryptFuture, AesGcm128Decrypt, [key: &'a [u8; 16], nonce: &'a [u8], aad: &'a [u8], ciphertext: &'a [u8], plaintext: &'a mut [u8], tag: &'a [u8; 16]]);
-impl_async_op!(AesGcm256EncryptFuture, AesGcm256Encrypt, [key: &'a [u8; 32], nonce: &'a [u8], aad: &'a [u8], plaintext: &'a [u8], ciphertext: &'a mut [u8], tag: &'a mut [u8; 16]]);
-impl_async_op!(AesGcm256DecryptFuture, AesGcm256Decrypt, [key: &'a [u8; 32], nonce: &'a [u8], aad: &'a [u8], ciphertext: &'a [u8], plaintext: &'a mut [u8], tag: &'a [u8; 16]]);
-impl_async_op!(AesCcm128EncryptFuture, AesCcm128Encrypt, [key: &'a [u8; 16], nonce: &'a [u8], aad: &'a [u8], plaintext: &'a [u8], ciphertext: &'a mut [u8], tag: &'a mut [u8; 16]]);
-impl_async_op!(AesCcm128DecryptFuture, AesCcm128Decrypt, [key: &'a [u8; 16], nonce: &'a [u8], aad: &'a [u8], ciphertext: &'a [u8], plaintext: &'a mut [u8], tag: &'a [u8; 16]]);
-impl_async_op!(AesCcm8_128EncryptFuture, AesCcm8_128Encrypt, [key: &'a [u8; 16], nonce: &'a [u8], aad: &'a [u8], plaintext: &'a [u8], ciphertext: &'a mut [u8], tag: &'a mut [u8; 8]]);
-impl_async_op!(AesCcm8_128DecryptFuture, AesCcm8_128Decrypt, [key: &'a [u8; 16], nonce: &'a [u8], aad: &'a [u8], ciphertext: &'a [u8], plaintext: &'a mut [u8], tag: &'a [u8; 8]]);
-impl_async_op!(Sha256Future, Sha256, [data: &'a [u8], out: &'a mut [u8; 32]]);
-impl_async_op!(Sha384Future, Sha384, [data: &'a [u8], out: &'a mut [u8; 48]]);
 impl_async_op!(P256KeygenFuture, P256Keygen, [secret_key: &'a mut [u8; 32], public_key: &'a mut [u8; 64]]);
 impl_async_op!(P256EcdhFuture, P256Ecdh, [secret_key: &'a [u8; 32], public_key: &'a [u8; 64], shared_secret: &'a mut [u8; 32]]);
 impl_async_op!(P256EcdsaSignFuture, P256EcdsaSign, [secret_key: &'a [u8; 32], digest: &'a [u8; 32], signature: &'a mut [u8; 64]]);
