@@ -671,6 +671,8 @@ pub(crate) trait RunnerBackend {
     fn cancel_op(&self, handle: OpHandle) -> Result<(), CryptoError>;
 
     fn try_rng_fill(&self, dest: &mut [u8]) -> Option<Result<(), CryptoError>>;
+
+    fn try_hmac_init(&self, op: Algorithm, key: &[u8]) -> Result<ContextHandle, CryptoError>;
 }
 
 macro_rules! impl_crypto_runner {
@@ -782,6 +784,32 @@ macro_rules! impl_crypto_runner {
                         if let Ok(mut guard) = self.drivers.$idx.try_lock() {
                             let ctx = unsafe { &mut *self.context_table.ctx_mut(handle) };
                             guard.blocking_hash_init(op, ctx)?;
+                            unsafe {
+                                self.context_table.set_driver_idx(handle, $idx);
+                            }
+                            return Ok(handle);
+                        }
+                    }
+                })+
+
+                self.context_table.free(handle);
+                Err(CryptoError::HardwareError)
+            }
+
+            fn try_hmac_init(
+                &self,
+                op: Algorithm,
+                key: &[u8],
+            ) -> Result<ContextHandle, CryptoError> {
+                let handle = self.context_table.alloc()
+                    .ok_or(CryptoError::HardwareError)?;
+                let required = op.required_caps();
+
+                $({
+                    if self.driver_caps[$idx].contains(required) {
+                        if let Ok(mut guard) = self.drivers.$idx.try_lock() {
+                            let ctx = unsafe { &mut *self.context_table.ctx_mut(handle) };
+                            guard.blocking_hmac_init(op, key, ctx)?;
                             unsafe {
                                 self.context_table.set_driver_idx(handle, $idx);
                             }

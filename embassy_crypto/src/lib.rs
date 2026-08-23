@@ -352,6 +352,15 @@ impl BlockingCryptoDriver for MockDriver {
         Ok(())
     }
 
+    fn blocking_hmac_init(
+        &mut self,
+        _op: Algorithm,
+        _key: &[u8],
+        ctx: &mut HashContext,
+    ) -> Result<(), CryptoError> {
+        ctx.0.fill(0xAA);
+        Ok(())
+    }
     fn blocking_hash_update(
         &mut self,
         _op: Algorithm,

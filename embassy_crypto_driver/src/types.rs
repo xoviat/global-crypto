@@ -33,6 +33,9 @@ impl Capabilities {
     pub const SHA_512_224: Self = Self(1 << 26);
     pub const SHA_512_256: Self = Self(1 << 27);
     pub const SHA_512: Self = Self(1 << 28);
+    pub const HmacSha256: Self = Self(1 << 29);
+    pub const HmacSha384: Self = Self(1 << 30);
+    pub const HmacSha512: Self = Self(1 << 31);
 
     #[inline]
     pub const fn contains(self, other: Self) -> bool {
@@ -46,7 +49,7 @@ impl Capabilities {
 
     #[inline]
     pub const fn all() -> Self {
-        Self((1 << 29) - 1)
+        Self(u32::MAX)
     }
 }
 
@@ -114,6 +117,12 @@ pub enum Algorithm {
 
     /// SHA-512 Algorithm
     SHA512 = 15,
+    /// HMAC-SHA-256 Algorithm
+    HmacSha256 = 16,
+    /// HMAC-SHA-384 Algorithm
+    HmacSha384 = 17,
+    /// HMAC-SHA-512 Algorithm
+    HmacSha512 = 18,
 }
 
 impl Algorithm {
@@ -127,6 +136,9 @@ impl Algorithm {
             Self::SHA512_224 => Capabilities::SHA_512_224,
             Self::SHA512_256 => Capabilities::SHA_512_256,
             Self::SHA512 => Capabilities::SHA_512,
+            Self::HmacSha256 => Capabilities::HmacSha256,
+            Self::HmacSha384 => Capabilities::HmacSha384,
+            Self::HmacSha512 => Capabilities::HmacSha512,
         }
     }
 
@@ -140,6 +152,9 @@ impl Algorithm {
             Self::SHA512_224 => 28,
             Self::SHA512_256 => 32,
             Self::SHA512 => 64,
+            Self::HmacSha256 => 32,
+            Self::HmacSha384 => 48,
+            Self::HmacSha512 => 64,
         }
     }
 }

@@ -287,6 +287,14 @@ pub trait BlockingCryptoDriver {
     }
 
     /// Update a streaming hash context with more data.
+    fn blocking_hmac_init(
+        &mut self,
+        _op: Algorithm,
+        _key: &[u8],
+        _ctx: &mut HashContext,
+    ) -> Result<(), CryptoError> {
+        Err(CryptoError::Unsupported)
+    }
     fn blocking_hash_update(
         &mut self,
         _op: Algorithm,

@@ -2,6 +2,7 @@ use core::future::Future;
 use core::pin::Pin;
 use core::task::{Context, Poll};
 
+use crate::queue::ContextHandle;
 use crate::runner::RunnerBackend;
 use embassy_crypto_driver::{Algorithm, CryptoError};
 
@@ -23,6 +24,33 @@ macro_rules! impl_blocking_size_op {
             self.backend
                 .dispatch_blocking_size(crate::runner::BlockingOpSize::$variant { $($arg),* })
                 .unwrap_or(Err(CryptoError::HardwareError))
+        }
+    };
+}
+
+/// Generate an HMAC streaming init method.
+macro_rules! impl_hmac_init_op {
+    ($name:ident, $algo:expr) => {
+        pub fn $name(&self, key: &[u8]) -> Result<ContextHandle, CryptoError> {
+            self.backend.try_hmac_init($algo, key)
+        }
+    };
+}
+
+/// Generate an HMAC streaming update method.
+macro_rules! impl_hmac_update_op {
+    ($name:ident, $algo:expr) => {
+        pub fn $name(&self, handle: ContextHandle, data: &[u8]) -> Result<(), CryptoError> {
+            self.backend.try_context_update(handle, $algo, data)
+        }
+    };
+}
+
+/// Generate an HMAC streaming finalize method.
+macro_rules! impl_hmac_finalize_op {
+    ($name:ident, $algo:expr) => {
+        pub fn $name(&self, handle: ContextHandle, out: &mut [u8]) -> Result<(), CryptoError> {
+            self.backend.try_context_finalize(handle, $algo, out)
         }
     };
 }
@@ -248,6 +276,21 @@ impl CryptoServer<'_> {
         Algorithm::SHA512,
         64
     );
+
+    // ------------------------------------------------------------------
+    // HMAC streaming operations
+    // ------------------------------------------------------------------
+    impl_hmac_init_op!(hmac_sha256_init, Algorithm::HmacSha256);
+    impl_hmac_update_op!(hmac_sha256_update, Algorithm::HmacSha256);
+    impl_hmac_finalize_op!(hmac_sha256_finalize, Algorithm::HmacSha256);
+
+    impl_hmac_init_op!(hmac_sha384_init, Algorithm::HmacSha384);
+    impl_hmac_update_op!(hmac_sha384_update, Algorithm::HmacSha384);
+    impl_hmac_finalize_op!(hmac_sha384_finalize, Algorithm::HmacSha384);
+
+    impl_hmac_init_op!(hmac_sha512_init, Algorithm::HmacSha512);
+    impl_hmac_update_op!(hmac_sha512_update, Algorithm::HmacSha512);
+    impl_hmac_finalize_op!(hmac_sha512_finalize, Algorithm::HmacSha512);
 }
 
 // ------------------------------------------------------------------
