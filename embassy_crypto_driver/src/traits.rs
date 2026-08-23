@@ -118,7 +118,7 @@ pub trait BlockingCryptoDriver {
     }
     fn blocking_p256_keygen(
         &mut self,
-        _secret_key: &mut [u8; 32],
+        _secret_key: &[u8; 32],
         _public_key: &mut [u8; 64],
     ) -> Result<(), CryptoError> {
         Err(CryptoError::Unsupported)
@@ -149,7 +149,7 @@ pub trait BlockingCryptoDriver {
     }
     fn blocking_p384_keygen(
         &mut self,
-        _secret_key: &mut [u8; 48],
+        _secret_key: &[u8; 48],
         _public_key: &mut [u8; 96],
     ) -> Result<(), CryptoError> {
         Err(CryptoError::Unsupported)
@@ -339,7 +339,7 @@ pub trait BlockingCryptoDriver {
 pub trait CryptoDriver: BlockingCryptoDriver {
     fn p256_keygen<'a>(
         &'a mut self,
-        _secret_key: &'a mut [u8; 32],
+        _secret_key: &'a [u8; 32],
         _public_key: &'a mut [u8; 64],
     ) -> impl Future<Output = Result<(), CryptoError>> + 'a {
         core::future::ready(Err(CryptoError::Unsupported))
@@ -370,7 +370,7 @@ pub trait CryptoDriver: BlockingCryptoDriver {
     }
     fn p384_keygen<'a>(
         &'a mut self,
-        _secret_key: &'a mut [u8; 48],
+        _secret_key: &'a [u8; 48],
         _public_key: &'a mut [u8; 96],
     ) -> impl Future<Output = Result<(), CryptoError>> + 'a {
         core::future::ready(Err(CryptoError::Unsupported))

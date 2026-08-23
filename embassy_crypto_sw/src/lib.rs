@@ -21,20 +21,16 @@ use embassy_crypto_driver::{
 };
 
 // AES block cipher
-use aes::cipher::{
-    generic_array::GenericArray,
-    BlockDecrypt, BlockEncrypt,
-    KeyInit as _,
-};
 use aes::Aes128;
+use aes::cipher::{BlockDecrypt, BlockEncrypt, KeyInit as _, generic_array::GenericArray};
 
 // AES-GCM
 use aes_gcm::aead::AeadInPlace;
 use aes_gcm::{Aes128Gcm, Aes256Gcm};
 
 // AES-CCM
+use aes::cipher::typenum::{U8, U13, U16};
 use ccm::Ccm;
-use aes::cipher::typenum::{U13, U16, U8};
 
 // CMAC
 use cmac::Cmac;
@@ -43,19 +39,17 @@ use hmac::Hmac;
 
 // P-256 / P-384
 use p256::ecdsa::{
-    Signature as P256Signature, SigningKey as P256SigningKey,
-    VerifyingKey as P256VerifyingKey,
+    Signature as P256Signature, SigningKey as P256SigningKey, VerifyingKey as P256VerifyingKey,
 };
+use p256::elliptic_curve::sec1::ToEncodedPoint;
 use p384::ecdsa::{
-    Signature as P384Signature, SigningKey as P384SigningKey,
-    VerifyingKey as P384VerifyingKey,
+    Signature as P384Signature, SigningKey as P384SigningKey, VerifyingKey as P384VerifyingKey,
 };
 use signature::hazmat::{PrehashSigner, PrehashVerifier};
 
 // Compile-time assert that RustCrypto Sha256 fits in HashContext.
 const _: () = assert!(core::mem::size_of::<sha2::Sha256>() <= 256);
 const _: () = assert!(core::mem::size_of::<Hmac<sha2::Sha256>>() <= 256);
-
 
 /// Zero-sized software crypto driver.
 ///
@@ -67,6 +61,8 @@ impl BlockingCryptoDriver for SwDriver {
     fn capabilities(&self) -> Capabilities {
         Capabilities::SHA_256
             | Capabilities::HMAC_SHA256
+            | Capabilities::P256_KEYGEN
+            | Capabilities::P384_KEYGEN
             | Capabilities::AES_128_ECB
             | Capabilities::AES_128_CMAC
             | Capabilities::AES_128_GCM
@@ -89,8 +85,7 @@ impl BlockingCryptoDriver for SwDriver {
         block: &mut [u8; 16],
         key: &[u8; 16],
     ) -> Result<(), CryptoError> {
-        let cipher = Aes128::new_from_slice(key.as_slice())
-            .map_err(|_| CryptoError::InvalidKey)?;
+        let cipher = Aes128::new_from_slice(key.as_slice()).map_err(|_| CryptoError::InvalidKey)?;
         cipher.encrypt_block(GenericArray::from_mut_slice(block));
         Ok(())
     }
@@ -100,8 +95,7 @@ impl BlockingCryptoDriver for SwDriver {
         block: &mut [u8; 16],
         key: &[u8; 16],
     ) -> Result<(), CryptoError> {
-        let cipher = Aes128::new_from_slice(key.as_slice())
-            .map_err(|_| CryptoError::InvalidKey)?;
+        let cipher = Aes128::new_from_slice(key.as_slice()).map_err(|_| CryptoError::InvalidKey)?;
         cipher.decrypt_block(GenericArray::from_mut_slice(block));
         Ok(())
     }
@@ -141,8 +135,8 @@ impl BlockingCryptoDriver for SwDriver {
         if ciphertext.len() != plaintext.len() {
             return Err(CryptoError::InvalidInput);
         }
-        let cipher = Aes128Gcm::new_from_slice(key.as_slice())
-            .map_err(|_| CryptoError::InvalidKey)?;
+        let cipher =
+            Aes128Gcm::new_from_slice(key.as_slice()).map_err(|_| CryptoError::InvalidKey)?;
         let nonce_ga = GenericArray::from_slice(nonce);
         ciphertext.copy_from_slice(plaintext);
         let computed_tag = cipher
@@ -167,8 +161,8 @@ impl BlockingCryptoDriver for SwDriver {
         if plaintext.len() != ciphertext.len() {
             return Err(CryptoError::InvalidInput);
         }
-        let cipher = Aes128Gcm::new_from_slice(key.as_slice())
-            .map_err(|_| CryptoError::InvalidKey)?;
+        let cipher =
+            Aes128Gcm::new_from_slice(key.as_slice()).map_err(|_| CryptoError::InvalidKey)?;
         let nonce_ga = GenericArray::from_slice(nonce);
         plaintext.copy_from_slice(ciphertext);
         cipher
@@ -195,8 +189,8 @@ impl BlockingCryptoDriver for SwDriver {
         if ciphertext.len() != plaintext.len() {
             return Err(CryptoError::InvalidInput);
         }
-        let cipher = Aes256Gcm::new_from_slice(key.as_slice())
-            .map_err(|_| CryptoError::InvalidKey)?;
+        let cipher =
+            Aes256Gcm::new_from_slice(key.as_slice()).map_err(|_| CryptoError::InvalidKey)?;
         let nonce_ga = GenericArray::from_slice(nonce);
         ciphertext.copy_from_slice(plaintext);
         let computed_tag = cipher
@@ -221,8 +215,8 @@ impl BlockingCryptoDriver for SwDriver {
         if plaintext.len() != ciphertext.len() {
             return Err(CryptoError::InvalidInput);
         }
-        let cipher = Aes256Gcm::new_from_slice(key.as_slice())
-            .map_err(|_| CryptoError::InvalidKey)?;
+        let cipher =
+            Aes256Gcm::new_from_slice(key.as_slice()).map_err(|_| CryptoError::InvalidKey)?;
         let nonce_ga = GenericArray::from_slice(nonce);
         plaintext.copy_from_slice(ciphertext);
         cipher
@@ -250,8 +244,7 @@ impl BlockingCryptoDriver for SwDriver {
             return Err(CryptoError::InvalidInput);
         }
         type Ccm128 = Ccm<Aes128, U16, U13>;
-        let cipher = Ccm128::new_from_slice(key.as_slice())
-            .map_err(|_| CryptoError::InvalidKey)?;
+        let cipher = Ccm128::new_from_slice(key.as_slice()).map_err(|_| CryptoError::InvalidKey)?;
         let nonce_ga = GenericArray::from_slice(nonce);
         ciphertext.copy_from_slice(plaintext);
         let computed_tag = cipher
@@ -277,8 +270,7 @@ impl BlockingCryptoDriver for SwDriver {
             return Err(CryptoError::InvalidInput);
         }
         type Ccm128 = Ccm<Aes128, U16, U13>;
-        let cipher = Ccm128::new_from_slice(key.as_slice())
-            .map_err(|_| CryptoError::InvalidKey)?;
+        let cipher = Ccm128::new_from_slice(key.as_slice()).map_err(|_| CryptoError::InvalidKey)?;
         let nonce_ga = GenericArray::from_slice(nonce);
         plaintext.copy_from_slice(ciphertext);
         cipher
@@ -306,8 +298,8 @@ impl BlockingCryptoDriver for SwDriver {
             return Err(CryptoError::InvalidInput);
         }
         type Ccm8_128 = Ccm<Aes128, U8, U13>;
-        let cipher = Ccm8_128::new_from_slice(key.as_slice())
-            .map_err(|_| CryptoError::InvalidKey)?;
+        let cipher =
+            Ccm8_128::new_from_slice(key.as_slice()).map_err(|_| CryptoError::InvalidKey)?;
         let nonce_ga = GenericArray::from_slice(nonce);
         ciphertext.copy_from_slice(plaintext);
         let computed_tag = cipher
@@ -333,8 +325,8 @@ impl BlockingCryptoDriver for SwDriver {
             return Err(CryptoError::InvalidInput);
         }
         type Ccm8_128 = Ccm<Aes128, U8, U13>;
-        let cipher = Ccm8_128::new_from_slice(key.as_slice())
-            .map_err(|_| CryptoError::InvalidKey)?;
+        let cipher =
+            Ccm8_128::new_from_slice(key.as_slice()).map_err(|_| CryptoError::InvalidKey)?;
         let nonce_ga = GenericArray::from_slice(nonce);
         plaintext.copy_from_slice(ciphertext);
         cipher
@@ -357,12 +349,9 @@ impl BlockingCryptoDriver for SwDriver {
         let mut sec1 = [0u8; 65];
         sec1[0] = 0x04;
         sec1[1..].copy_from_slice(public_key.as_slice());
-        let public = p256::PublicKey::from_sec1_bytes(&sec1)
-            .map_err(|_| CryptoError::InvalidKey)?;
-        let shared = p256::ecdh::diffie_hellman(
-            secret.to_nonzero_scalar(),
-            public.as_affine(),
-        );
+        let public =
+            p256::PublicKey::from_sec1_bytes(&sec1).map_err(|_| CryptoError::InvalidKey)?;
+        let shared = p256::ecdh::diffie_hellman(secret.to_nonzero_scalar(), public.as_affine());
         shared_secret.copy_from_slice(shared.raw_secret_bytes().as_slice());
         Ok(())
     }
@@ -373,10 +362,9 @@ impl BlockingCryptoDriver for SwDriver {
         digest: &[u8; 32],
         signature: &mut [u8; 64],
     ) -> Result<(), CryptoError> {
-        let signing_key = P256SigningKey::from_bytes(
-            GenericArray::from_slice(secret_key.as_slice()),
-        )
-        .map_err(|_| CryptoError::InvalidKey)?;
+        let signing_key =
+            P256SigningKey::from_bytes(GenericArray::from_slice(secret_key.as_slice()))
+                .map_err(|_| CryptoError::InvalidKey)?;
         let sig: P256Signature = signing_key
             .sign_prehash(digest.as_slice())
             .map_err(|_| CryptoError::HardwareError)?;
@@ -393,12 +381,10 @@ impl BlockingCryptoDriver for SwDriver {
         let mut sec1 = [0u8; 65];
         sec1[0] = 0x04;
         sec1[1..].copy_from_slice(public_key.as_slice());
-        let verifying_key = P256VerifyingKey::from_sec1_bytes(&sec1)
-            .map_err(|_| CryptoError::InvalidKey)?;
-        let sig = P256Signature::from_bytes(
-            GenericArray::from_slice(signature.as_slice()),
-        )
-        .map_err(|_| CryptoError::InvalidSignature)?;
+        let verifying_key =
+            P256VerifyingKey::from_sec1_bytes(&sec1).map_err(|_| CryptoError::InvalidKey)?;
+        let sig = P256Signature::from_bytes(GenericArray::from_slice(signature.as_slice()))
+            .map_err(|_| CryptoError::InvalidSignature)?;
         verifying_key
             .verify_prehash(digest.as_slice(), &sig)
             .map_err(|_| CryptoError::InvalidSignature)?;
@@ -419,12 +405,9 @@ impl BlockingCryptoDriver for SwDriver {
         let mut sec1 = [0u8; 97];
         sec1[0] = 0x04;
         sec1[1..].copy_from_slice(public_key.as_slice());
-        let public = p384::PublicKey::from_sec1_bytes(&sec1)
-            .map_err(|_| CryptoError::InvalidKey)?;
-        let shared = p384::ecdh::diffie_hellman(
-            secret.to_nonzero_scalar(),
-            public.as_affine(),
-        );
+        let public =
+            p384::PublicKey::from_sec1_bytes(&sec1).map_err(|_| CryptoError::InvalidKey)?;
+        let shared = p384::ecdh::diffie_hellman(secret.to_nonzero_scalar(), public.as_affine());
         shared_secret.copy_from_slice(shared.raw_secret_bytes().as_slice());
         Ok(())
     }
@@ -435,10 +418,9 @@ impl BlockingCryptoDriver for SwDriver {
         digest: &[u8; 48],
         signature: &mut [u8; 96],
     ) -> Result<(), CryptoError> {
-        let signing_key = P384SigningKey::from_bytes(
-            GenericArray::from_slice(secret_key.as_slice()),
-        )
-        .map_err(|_| CryptoError::InvalidKey)?;
+        let signing_key =
+            P384SigningKey::from_bytes(GenericArray::from_slice(secret_key.as_slice()))
+                .map_err(|_| CryptoError::InvalidKey)?;
         let sig: P384Signature = signing_key
             .sign_prehash(digest.as_slice())
             .map_err(|_| CryptoError::HardwareError)?;
@@ -455,12 +437,10 @@ impl BlockingCryptoDriver for SwDriver {
         let mut sec1 = [0u8; 97];
         sec1[0] = 0x04;
         sec1[1..].copy_from_slice(public_key.as_slice());
-        let verifying_key = P384VerifyingKey::from_sec1_bytes(&sec1)
-            .map_err(|_| CryptoError::InvalidKey)?;
-        let sig = P384Signature::from_bytes(
-            GenericArray::from_slice(signature.as_slice()),
-        )
-        .map_err(|_| CryptoError::InvalidSignature)?;
+        let verifying_key =
+            P384VerifyingKey::from_sec1_bytes(&sec1).map_err(|_| CryptoError::InvalidKey)?;
+        let sig = P384Signature::from_bytes(GenericArray::from_slice(signature.as_slice()))
+            .map_err(|_| CryptoError::InvalidSignature)?;
         verifying_key
             .verify_prehash(digest.as_slice(), &sig)
             .map_err(|_| CryptoError::InvalidSignature)?;
@@ -551,5 +531,33 @@ impl BlockingCryptoDriver for SwDriver {
             }
             _ => Err(CryptoError::Unsupported),
         }
+    }
+
+    fn blocking_p256_keygen(
+        &mut self,
+        secret_key: &[u8; 32],
+        public_key: &mut [u8; 64],
+    ) -> Result<(), CryptoError> {
+        let secret = p256::SecretKey::from_slice(secret_key.as_slice())
+            .map_err(|_| CryptoError::InvalidKey)?;
+        let pk = p256::PublicKey::from_secret_scalar(&secret.to_nonzero_scalar());
+        let point = pk.to_encoded_point(false);
+        public_key[..32].copy_from_slice(point.x().ok_or(CryptoError::InvalidKey)?.as_slice());
+        public_key[32..].copy_from_slice(point.y().ok_or(CryptoError::InvalidKey)?.as_slice());
+        Ok(())
+    }
+
+    fn blocking_p384_keygen(
+        &mut self,
+        secret_key: &[u8; 48],
+        public_key: &mut [u8; 96],
+    ) -> Result<(), CryptoError> {
+        let secret = p384::SecretKey::from_slice(secret_key.as_slice())
+            .map_err(|_| CryptoError::InvalidKey)?;
+        let pk = p384::PublicKey::from_secret_scalar(&secret.to_nonzero_scalar());
+        let point = pk.to_encoded_point(false);
+        public_key[..48].copy_from_slice(point.x().ok_or(CryptoError::InvalidKey)?.as_slice());
+        public_key[48..].copy_from_slice(point.y().ok_or(CryptoError::InvalidKey)?.as_slice());
+        Ok(())
     }
 }

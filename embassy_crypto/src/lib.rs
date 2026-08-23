@@ -157,16 +157,15 @@ impl BlockingCryptoDriver for MockDriver {
 
     fn blocking_p256_keygen(
         &mut self,
-        secret_key: &mut [u8; 32],
+        _secret_key: &[u8; 32],
         public_key: &mut [u8; 64],
     ) -> Result<(), CryptoError> {
-        secret_key.fill(0x0C);
         public_key.fill(0x0D);
         Ok(())
     }
     fn blocking_p256_ecdh(
         &mut self,
-        _secret_key: &[u8; 32],
+        __secret_key: &[u8; 32],
         _public_key: &[u8; 64],
         shared_secret: &mut [u8; 32],
     ) -> Result<(), CryptoError> {
@@ -175,7 +174,7 @@ impl BlockingCryptoDriver for MockDriver {
     }
     fn blocking_p256_ecdsa_sign(
         &mut self,
-        _secret_key: &[u8; 32],
+        __secret_key: &[u8; 32],
         _digest: &[u8; 32],
         signature: &mut [u8; 64],
     ) -> Result<(), CryptoError> {
@@ -192,17 +191,16 @@ impl BlockingCryptoDriver for MockDriver {
     }
     fn blocking_p384_keygen(
         &mut self,
-        secret_key: &mut [u8; 48],
+        _secret_key: &[u8; 48],
         public_key: &mut [u8; 96],
     ) -> Result<(), CryptoError> {
-        secret_key.fill(0x10);
         public_key.fill(0x11);
         Ok(())
     }
 
     fn blocking_p384_ecdh(
         &mut self,
-        _secret_key: &[u8; 48],
+        __secret_key: &[u8; 48],
         _public_key: &[u8; 96],
         shared_secret: &mut [u8; 48],
     ) -> Result<(), CryptoError> {
@@ -212,7 +210,7 @@ impl BlockingCryptoDriver for MockDriver {
 
     fn blocking_p384_ecdsa_sign(
         &mut self,
-        _secret_key: &[u8; 48],
+        __secret_key: &[u8; 48],
         _digest: &[u8; 48],
         signature: &mut [u8; 96],
     ) -> Result<(), CryptoError> {
@@ -384,17 +382,16 @@ impl BlockingCryptoDriver for MockDriver {
 impl CryptoDriver for MockDriver {
     async fn p256_keygen<'a>(
         &'a mut self,
-        secret_key: &'a mut [u8; 32],
+        _secret_key: &'a [u8; 32],
         public_key: &'a mut [u8; 64],
     ) -> Result<(), CryptoError> {
-        secret_key.fill(0x50);
         public_key.fill(0x51);
         Ok(())
     }
 
     async fn p256_ecdh<'a>(
         &'a mut self,
-        _secret_key: &'a [u8; 32],
+        __secret_key: &'a [u8; 32],
         _public_key: &'a [u8; 64],
         shared_secret: &'a mut [u8; 32],
     ) -> Result<(), CryptoError> {
@@ -404,7 +401,7 @@ impl CryptoDriver for MockDriver {
 
     async fn p256_ecdsa_sign<'a>(
         &'a mut self,
-        _secret_key: &'a [u8; 32],
+        __secret_key: &'a [u8; 32],
         _digest: &'a [u8; 32],
         signature: &'a mut [u8; 64],
     ) -> Result<(), CryptoError> {
@@ -423,17 +420,16 @@ impl CryptoDriver for MockDriver {
 
     async fn p384_keygen<'a>(
         &'a mut self,
-        secret_key: &'a mut [u8; 48],
+        _secret_key: &'a [u8; 48],
         public_key: &'a mut [u8; 96],
     ) -> Result<(), CryptoError> {
-        secret_key.fill(0x60);
         public_key.fill(0x61);
         Ok(())
     }
 
     async fn p384_ecdh<'a>(
         &'a mut self,
-        _secret_key: &'a [u8; 48],
+        __secret_key: &'a [u8; 48],
         _public_key: &'a [u8; 96],
         shared_secret: &'a mut [u8; 48],
     ) -> Result<(), CryptoError> {
@@ -443,7 +439,7 @@ impl CryptoDriver for MockDriver {
 
     async fn p384_ecdsa_sign<'a>(
         &'a mut self,
-        _secret_key: &'a [u8; 48],
+        __secret_key: &'a [u8; 48],
         _digest: &'a [u8; 48],
         signature: &'a mut [u8; 96],
     ) -> Result<(), CryptoError> {

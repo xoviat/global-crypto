@@ -306,7 +306,7 @@ pub(crate) enum BlockingOp<'a> {
         tag: &'a [u8; 16],
     },
     P256Keygen {
-        secret_key: &'a mut [u8; 32],
+        secret_key: &'a [u8; 32],
         public_key: &'a mut [u8; 64],
     },
     P256Ecdh {
@@ -325,7 +325,7 @@ pub(crate) enum BlockingOp<'a> {
         signature: &'a [u8; 64],
     },
     P384Keygen {
-        secret_key: &'a mut [u8; 48],
+        secret_key: &'a [u8; 48],
         public_key: &'a mut [u8; 96],
     },
     P384Ecdh {

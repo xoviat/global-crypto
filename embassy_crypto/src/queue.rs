@@ -59,7 +59,7 @@ pub struct ContextHandle {
 #[derive(Clone, Copy)]
 pub enum OpKind {
     P256Keygen {
-        secret_key: *mut [u8; 32],
+        secret_key: *const [u8; 32],
         public_key: *mut [u8; 64],
     },
     P256Ecdh {
@@ -78,7 +78,7 @@ pub enum OpKind {
         signature: *const [u8; 64],
     },
     P384Keygen {
-        secret_key: *mut [u8; 48],
+        secret_key: *const [u8; 48],
         public_key: *mut [u8; 96],
     },
     P384Ecdh {
@@ -222,7 +222,7 @@ impl OpKind {
                 public_key,
             } => OpOutput::Unit(
                 driver
-                    .p256_keygen(unsafe { &mut **secret_key }, unsafe { &mut **public_key })
+                    .p256_keygen(unsafe { &**secret_key }, unsafe { &mut **public_key })
                     .await,
             ),
             Self::P256Ecdh {
@@ -263,7 +263,7 @@ impl OpKind {
                 public_key,
             } => OpOutput::Unit(
                 driver
-                    .p384_keygen(unsafe { &mut **secret_key }, unsafe { &mut **public_key })
+                    .p384_keygen(unsafe { &**secret_key }, unsafe { &mut **public_key })
                     .await,
             ),
             Self::P384Ecdh {
