@@ -160,6 +160,12 @@ pub struct CryptoServer<'a> {
     pub(crate) backend: &'a dyn RunnerBackend,
 }
 
+impl<'a> embassy_crypto_driver::BlockingRng for CryptoServer<'a> {
+    fn fill_bytes(&mut self, dest: &mut [u8]) {
+        self.blocking_rng_fill(dest).expect("RNG failed");
+    }
+}
+
 impl CryptoServer<'_> {
     // ------------------------------------------------------------------
     // Blocking operations
@@ -198,11 +204,11 @@ impl CryptoServer<'_> {
     impl_blocking_op!(blocking_rsa_verify_pkcs1v15_sha384, RsaVerifyPkcs1v15Sha384, [public_key: &[u8], digest: &[u8; 48], signature: &[u8]]);
     impl_blocking_size_op!(blocking_rsa_sign_pkcs1v15_sha512, RsaSignPkcs1v15Sha512, [private_key: &[u8], digest: &[u8; 64], signature: &mut [u8]]);
     impl_blocking_op!(blocking_rsa_verify_pkcs1v15_sha512, RsaVerifyPkcs1v15Sha512, [public_key: &[u8], digest: &[u8; 64], signature: &[u8]]);
-    impl_blocking_size_op!(blocking_rsa_sign_pss_sha256, RsaSignPssSha256, [private_key: &[u8], digest: &[u8; 32], signature: &mut [u8], entropy: Option<&[u8]>]);
+    impl_blocking_size_op!(blocking_rsa_sign_pss_sha256, RsaSignPssSha256, [private_key: &[u8], digest: &[u8; 32], signature: &mut [u8]]);
     impl_blocking_op!(blocking_rsa_verify_pss_sha256, RsaVerifyPssSha256, [public_key: &[u8], digest: &[u8; 32], signature: &[u8]]);
-    impl_blocking_size_op!(blocking_rsa_sign_pss_sha384, RsaSignPssSha384, [private_key: &[u8], digest: &[u8; 48], signature: &mut [u8], entropy: Option<&[u8]>]);
+    impl_blocking_size_op!(blocking_rsa_sign_pss_sha384, RsaSignPssSha384, [private_key: &[u8], digest: &[u8; 48], signature: &mut [u8]]);
     impl_blocking_op!(blocking_rsa_verify_pss_sha384, RsaVerifyPssSha384, [public_key: &[u8], digest: &[u8; 48], signature: &[u8]]);
-    impl_blocking_size_op!(blocking_rsa_sign_pss_sha512, RsaSignPssSha512, [private_key: &[u8], digest: &[u8; 64], signature: &mut [u8], entropy: Option<&[u8]>]);
+    impl_blocking_size_op!(blocking_rsa_sign_pss_sha512, RsaSignPssSha512, [private_key: &[u8], digest: &[u8; 64], signature: &mut [u8]]);
     impl_blocking_op!(blocking_rsa_verify_pss_sha512, RsaVerifyPssSha512, [public_key: &[u8], digest: &[u8; 64], signature: &[u8]]);
 
     // ------------------------------------------------------------------

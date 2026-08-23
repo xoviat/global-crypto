@@ -61,57 +61,39 @@ use rsa::pkcs8::{DecodePrivateKey, DecodePublicKey};
 #[cfg(feature = "rsa")]
 use rsa::{Pkcs1v15Sign, Pss, RsaPrivateKey, RsaPublicKey};
 
-/// Deterministic RNG backed by a caller-provided entropy slice.
-///
-/// Used for RSA-PSS software signing so that the operation is fully deterministic
-/// given the same inputs (including entropy).
+/// Adapter that bridges `embassy_crypto_driver::BlockingRng` to `rand_core::CryptoRng`
+/// so that the `rsa` crate's PSS signing can consume caller-provided entropy.
 #[cfg(feature = "rsa")]
-struct SliceRng<'a> {
-    slice: &'a [u8],
-    pos: usize,
+struct BlockingRngAdapter<'a> {
+    rng: &'a mut dyn embassy_crypto_driver::BlockingRng,
 }
 
 #[cfg(feature = "rsa")]
-impl<'a> SliceRng<'a> {
-    fn new(slice: &'a [u8]) -> Self {
-        Self { slice, pos: 0 }
-    }
-}
-
-#[cfg(feature = "rsa")]
-impl<'a> rand_core::RngCore for SliceRng<'a> {
+impl<'a> rand_core::RngCore for BlockingRngAdapter<'a> {
     fn next_u32(&mut self) -> u32 {
         let mut buf = [0u8; 4];
-        self.fill_bytes(&mut buf);
+        self.rng.fill_bytes(&mut buf);
         u32::from_le_bytes(buf)
     }
 
     fn next_u64(&mut self) -> u64 {
         let mut buf = [0u8; 8];
-        self.fill_bytes(&mut buf);
+        self.rng.fill_bytes(&mut buf);
         u64::from_le_bytes(buf)
     }
 
     fn fill_bytes(&mut self, dest: &mut [u8]) {
-        let remaining = self.slice.len().saturating_sub(self.pos);
-        let len = dest.len().min(remaining);
-        dest[..len].copy_from_slice(&self.slice[self.pos..self.pos + len]);
-        self.pos += len;
-        // If entropy is exhausted, zero-fill the rest.
-        // Callers must provide sufficient entropy; this is checked before signing.
-        for b in &mut dest[len..] {
-            *b = 0;
-        }
+        self.rng.fill_bytes(dest);
     }
 
     fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand_core::Error> {
-        self.fill_bytes(dest);
+        self.rng.fill_bytes(dest);
         Ok(())
     }
 }
 
 #[cfg(feature = "rsa")]
-impl<'a> rand_core::CryptoRng for SliceRng<'a> {}
+impl<'a> rand_core::CryptoRng for BlockingRngAdapter<'a> {}
 
 // Compile-time assert that RustCrypto Sha256 fits in HashContext.
 const _: () = assert!(core::mem::size_of::<sha2::Sha256>() <= 256);
@@ -139,6 +121,7 @@ fn parse_rsa_public_key(key_der: &[u8]) -> Result<RsaPublicKey, CryptoError> {
 
 impl BlockingCryptoDriver for SwDriver {
     fn capabilities(&self) -> Capabilities {
+        #[allow(unused_mut)]
         let mut caps = Capabilities::SHA_256
             | Capabilities::HMAC_SHA256
             | Capabilities::P256_KEYGEN
@@ -797,14 +780,10 @@ impl BlockingCryptoDriver for SwDriver {
         private_key: &[u8],
         digest: &[u8; 32],
         signature: &mut [u8],
-        entropy: Option<&[u8]>,
+        rng: &mut dyn embassy_crypto_driver::BlockingRng,
     ) -> Result<usize, CryptoError> {
         let key = parse_rsa_private_key(private_key)?;
-        let entropy = entropy.ok_or(CryptoError::InvalidInput)?;
-        if entropy.len() < 32 {
-            return Err(CryptoError::InvalidInput);
-        }
-        let mut rng = SliceRng::new(entropy);
+        let mut rng = BlockingRngAdapter { rng };
         let sig = key
             .sign_with_rng(&mut rng, Pss::new::<sha2::Sha256>(), digest)
             .map_err(|_| CryptoError::HardwareError)?;
@@ -821,14 +800,10 @@ impl BlockingCryptoDriver for SwDriver {
         private_key: &[u8],
         digest: &[u8; 48],
         signature: &mut [u8],
-        entropy: Option<&[u8]>,
+        rng: &mut dyn embassy_crypto_driver::BlockingRng,
     ) -> Result<usize, CryptoError> {
         let key = parse_rsa_private_key(private_key)?;
-        let entropy = entropy.ok_or(CryptoError::InvalidInput)?;
-        if entropy.len() < 48 {
-            return Err(CryptoError::InvalidInput);
-        }
-        let mut rng = SliceRng::new(entropy);
+        let mut rng = BlockingRngAdapter { rng };
         let sig = key
             .sign_with_rng(&mut rng, Pss::new::<sha2::Sha384>(), digest)
             .map_err(|_| CryptoError::HardwareError)?;
@@ -845,14 +820,10 @@ impl BlockingCryptoDriver for SwDriver {
         private_key: &[u8],
         digest: &[u8; 64],
         signature: &mut [u8],
-        entropy: Option<&[u8]>,
+        rng: &mut dyn embassy_crypto_driver::BlockingRng,
     ) -> Result<usize, CryptoError> {
         let key = parse_rsa_private_key(private_key)?;
-        let entropy = entropy.ok_or(CryptoError::InvalidInput)?;
-        if entropy.len() < 64 {
-            return Err(CryptoError::InvalidInput);
-        }
-        let mut rng = SliceRng::new(entropy);
+        let mut rng = BlockingRngAdapter { rng };
         let sig = key
             .sign_with_rng(&mut rng, Pss::new::<sha2::Sha512>(), digest)
             .map_err(|_| CryptoError::HardwareError)?;

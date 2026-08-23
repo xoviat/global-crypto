@@ -437,19 +437,16 @@ pub(crate) enum BlockingOpSize<'a> {
         private_key: &'a [u8],
         digest: &'a [u8; 32],
         signature: &'a mut [u8],
-        entropy: Option<&'a [u8]>,
     },
     RsaSignPssSha384 {
         private_key: &'a [u8],
         digest: &'a [u8; 48],
         signature: &'a mut [u8],
-        entropy: Option<&'a [u8]>,
     },
     RsaSignPssSha512 {
         private_key: &'a [u8],
         digest: &'a [u8; 64],
         signature: &'a mut [u8],
-        entropy: Option<&'a [u8]>,
     },
 }
 
@@ -471,7 +468,7 @@ impl BlockingOpSize<'_> {
 /// Blanket impl keeps `impl_crypto_runner!` macro clean — no per-variant codegen.
 pub(crate) trait BlockingDispatcher {
     fn dispatch(&mut self, op: BlockingOp<'_>) -> Result<(), CryptoError>;
-    fn dispatch_size(&mut self, op: BlockingOpSize<'_>) -> Result<usize, CryptoError>;
+    fn dispatch_size(&mut self, op: BlockingOpSize<'_>, rng: &mut dyn embassy_crypto_driver::BlockingRng) -> Result<usize, CryptoError>;
 }
 
 impl<T: BlockingCryptoDriver> BlockingDispatcher for T {
@@ -620,7 +617,7 @@ impl<T: BlockingCryptoDriver> BlockingDispatcher for T {
         }
     }
 
-    fn dispatch_size(&mut self, op: BlockingOpSize<'_>) -> Result<usize, CryptoError> {
+    fn dispatch_size(&mut self, op: BlockingOpSize<'_>, rng: &mut dyn embassy_crypto_driver::BlockingRng) -> Result<usize, CryptoError> {
         match op {
             BlockingOpSize::RsaSignPkcs1v15Sha256 {
                 private_key,
@@ -641,20 +638,17 @@ impl<T: BlockingCryptoDriver> BlockingDispatcher for T {
                 private_key,
                 digest,
                 signature,
-                entropy,
-            } => self.blocking_rsa_sign_pss_sha256(private_key, digest, signature, entropy),
+            } => self.blocking_rsa_sign_pss_sha256(private_key, digest, signature, rng),
             BlockingOpSize::RsaSignPssSha384 {
                 private_key,
                 digest,
                 signature,
-                entropy,
-            } => self.blocking_rsa_sign_pss_sha384(private_key, digest, signature, entropy),
+            } => self.blocking_rsa_sign_pss_sha384(private_key, digest, signature, rng),
             BlockingOpSize::RsaSignPssSha512 {
                 private_key,
                 digest,
                 signature,
-                entropy,
-            } => self.blocking_rsa_sign_pss_sha512(private_key, digest, signature, entropy),
+            } => self.blocking_rsa_sign_pss_sha512(private_key, digest, signature, rng),
         }
     }
 }
@@ -788,18 +782,19 @@ macro_rules! impl_crypto_runner {
                 &self,
                 op: crate::runner::BlockingOpSize<'_>,
             ) -> Option<Result<usize, CryptoError>> {
+                let mut server = crate::server::CryptoServer { backend: self };
                 // 1. Try all hardware drivers first.
                 $({
                     if self.driver_caps[$idx].contains(op.required_caps()) {
                         if let Ok(mut guard) = self.hardware.$idx.try_lock() {
-                            return Some(guard.dispatch_size(op));
+                            return Some(guard.dispatch_size(op, &mut server));
                         }
                     }
                 })+
                 // 2. Hardware busy or missing → try software fallback.
                 if self.software_caps.contains(op.required_caps()) {
                     let mut software = self.software;
-                    return Some(software.dispatch_size(op));
+                    return Some(software.dispatch_size(op, &mut server));
                 }
                 None
             }
