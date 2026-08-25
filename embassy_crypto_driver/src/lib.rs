@@ -210,6 +210,10 @@ unitrait::unitrait! {
         #[symbol = "_embassy_crypto_try_context_update"]
         pub fn try_context_update(handle: ContextHandle, data: &[u8]) -> Result<(), CryptoError>;
 
+        /// Reset a streaming hash or HMAC context to its initial state.
+        #[symbol = "_embassy_crypto_try_context_reset"]
+        pub fn try_context_reset(handle: ContextHandle) -> Result<(), CryptoError>;
+
         /// Clone an existing streaming hash or HMAC context.
         #[symbol = "_embassy_crypto_try_context_clone"]
         pub fn try_context_clone(handle: ContextHandle) -> Result<ContextHandle, CryptoError>;
