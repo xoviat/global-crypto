@@ -2,15 +2,13 @@
 
 use core::marker::PhantomData;
 
-use embassy_crypto::{dispatch_blocking, CryptoError};
-use embassy_crypto_driver::BlockingOp;
+use embassy_crypto::{AesGcm128, AesGcm256};
 use embedded_tls::{
-    config::TlsCipherSuite,
+    Aes128GcmSha256, Aes256GcmSha384, CryptoProvider, NamedGroup,
     crypto_traits::{TlsAead, TlsHash, TlsHmac},
     TlsError,
 };
 use generic_array::GenericArray;
-use typenum::Unsigned;
 
 // ------------------------------------------------------------------
 // Hash wrappers
@@ -146,17 +144,14 @@ impl TlsHmac for EmbassyHmac384 {
 
 /// AES-128-GCM AEAD implementing [`TlsAead`], backed by `embassy-crypto`.
 pub struct EmbassyAead128 {
-    key: [u8; 16],
+    inner: AesGcm128,
 }
 
 impl EmbassyAead128 {
     pub fn new(key: &[u8]) -> Result<Self, TlsError> {
-        if key.len() != 16 {
-            return Err(TlsError::CryptoError);
-        }
-        let mut k = [0u8; 16];
-        k.copy_from_slice(key);
-        Ok(Self { key: k })
+        Ok(Self {
+            inner: AesGcm128::new(key).map_err(|_| TlsError::CryptoError)?,
+        })
     }
 }
 
@@ -168,17 +163,14 @@ impl TlsAead for EmbassyAead128 {
         buffer: &mut [u8],
         tag: &mut [u8],
     ) -> Result<(), TlsError> {
-        let mut tag_buf = [0u8; 16];
-        dispatch_blocking(BlockingOp::AesGcm128Encrypt {
-            key: &self.key,
-            nonce,
-            aad,
-            plaintext: buffer,
-            ciphertext: buffer,
-            tag: &mut tag_buf,
-        })
-        .map_err(|_| TlsError::CryptoError)?;
-        tag.copy_from_slice(&tag_buf);
+        if tag.len() != 16 {
+            return Err(TlsError::CryptoError);
+        }
+        let mut tag_arr = [0u8; 16];
+        self.inner
+            .encrypt_in_place(nonce, aad, buffer, &mut tag_arr)
+            .map_err(|_| TlsError::CryptoError)?;
+        tag.copy_from_slice(&tag_arr);
         Ok(())
     }
 
@@ -189,36 +181,27 @@ impl TlsAead for EmbassyAead128 {
         buffer: &mut [u8],
         tag: &[u8],
     ) -> Result<(), TlsError> {
-        let mut tag_buf = [0u8; 16];
         if tag.len() != 16 {
             return Err(TlsError::CryptoError);
         }
-        tag_buf.copy_from_slice(tag);
-        dispatch_blocking(BlockingOp::AesGcm128Decrypt {
-            key: &self.key,
-            nonce,
-            aad,
-            ciphertext: buffer,
-            plaintext: buffer,
-            tag: &tag_buf,
-        })
-        .map_err(|_| TlsError::CryptoError)
+        let mut tag_arr = [0u8; 16];
+        tag_arr.copy_from_slice(tag);
+        self.inner
+            .decrypt_in_place(nonce, aad, buffer, &tag_arr)
+            .map_err(|_| TlsError::CryptoError)
     }
 }
 
 /// AES-256-GCM AEAD implementing [`TlsAead`], backed by `embassy-crypto`.
 pub struct EmbassyAead256 {
-    key: [u8; 32],
+    inner: AesGcm256,
 }
 
 impl EmbassyAead256 {
     pub fn new(key: &[u8]) -> Result<Self, TlsError> {
-        if key.len() != 32 {
-            return Err(TlsError::CryptoError);
-        }
-        let mut k = [0u8; 32];
-        k.copy_from_slice(key);
-        Ok(Self { key: k })
+        Ok(Self {
+            inner: AesGcm256::new(key).map_err(|_| TlsError::CryptoError)?,
+        })
     }
 }
 
@@ -230,17 +213,14 @@ impl TlsAead for EmbassyAead256 {
         buffer: &mut [u8],
         tag: &mut [u8],
     ) -> Result<(), TlsError> {
-        let mut tag_buf = [0u8; 16];
-        dispatch_blocking(BlockingOp::AesGcm256Encrypt {
-            key: &self.key,
-            nonce,
-            aad,
-            plaintext: buffer,
-            ciphertext: buffer,
-            tag: &mut tag_buf,
-        })
-        .map_err(|_| TlsError::CryptoError)?;
-        tag.copy_from_slice(&tag_buf);
+        if tag.len() != 16 {
+            return Err(TlsError::CryptoError);
+        }
+        let mut tag_arr = [0u8; 16];
+        self.inner
+            .encrypt_in_place(nonce, aad, buffer, &mut tag_arr)
+            .map_err(|_| TlsError::CryptoError)?;
+        tag.copy_from_slice(&tag_arr);
         Ok(())
     }
 
@@ -251,20 +231,14 @@ impl TlsAead for EmbassyAead256 {
         buffer: &mut [u8],
         tag: &[u8],
     ) -> Result<(), TlsError> {
-        let mut tag_buf = [0u8; 16];
         if tag.len() != 16 {
             return Err(TlsError::CryptoError);
         }
-        tag_buf.copy_from_slice(tag);
-        dispatch_blocking(BlockingOp::AesGcm256Decrypt {
-            key: &self.key,
-            nonce,
-            aad,
-            ciphertext: buffer,
-            plaintext: buffer,
-            tag: &tag_buf,
-        })
-        .map_err(|_| TlsError::CryptoError)
+        let mut tag_arr = [0u8; 16];
+        tag_arr.copy_from_slice(tag);
+        self.inner
+            .decrypt_in_place(nonce, aad, buffer, &tag_arr)
+            .map_err(|_| TlsError::CryptoError)
     }
 }
 
@@ -288,15 +262,25 @@ impl<CipherSuite> EmbassyCryptoProvider<CipherSuite> {
     }
 }
 
-impl embedded_tls::CryptoProvider for EmbassyCryptoProvider<embedded_tls::Aes128GcmSha256> {
-    type CipherSuite = embedded_tls::Aes128GcmSha256;
+impl CryptoProvider for EmbassyCryptoProvider<Aes128GcmSha256> {
+    type CipherSuite = Aes128GcmSha256;
     type Signature = heapless::Vec<u8, 128>;
     type Hash = EmbassyHash256;
     type Hmac = EmbassyHmac256;
     type Aead = EmbassyAead128;
 
-    fn rng(&mut self) -> impl rand_core::CryptoRngCore {
-        unimplemented!("EmbassyCryptoProvider does not provide RNG; compose with another provider")
+    fn rng(&mut self) -> impl embedded_tls::CryptoRngCore {
+        struct NoRng;
+        impl rand_core::RngCore for NoRng {
+            fn next_u32(&mut self) -> u32 { panic!("no rng") }
+            fn next_u64(&mut self) -> u64 { panic!("no rng") }
+            fn fill_bytes(&mut self, _dest: &mut [u8]) { panic!("no rng") }
+            fn try_fill_bytes(&mut self, _dest: &mut [u8]) -> Result<(), rand_core::Error> {
+                panic!("no rng")
+            }
+        }
+        impl rand_core::CryptoRng for NoRng {}
+        NoRng
     }
 
     fn aead(&mut self, key: &[u8]) -> Result<Self::Aead, TlsError> {
@@ -305,7 +289,7 @@ impl embedded_tls::CryptoProvider for EmbassyCryptoProvider<embedded_tls::Aes128
 
     fn ecdh(
         &mut self,
-        _group: embedded_tls::extensions::extension_data::supported_groups::NamedGroup,
+        _group: NamedGroup,
         _secret_key: &[u8],
         _peer_public: &[u8],
         _shared_secret: &mut [u8],
@@ -315,7 +299,7 @@ impl embedded_tls::CryptoProvider for EmbassyCryptoProvider<embedded_tls::Aes128
 
     fn keygen(
         &mut self,
-        _group: embedded_tls::extensions::extension_data::supported_groups::NamedGroup,
+        _group: NamedGroup,
         _secret_key: &mut [u8],
         _public_key: &mut [u8],
     ) -> Result<(), TlsError> {
@@ -323,15 +307,25 @@ impl embedded_tls::CryptoProvider for EmbassyCryptoProvider<embedded_tls::Aes128
     }
 }
 
-impl embedded_tls::CryptoProvider for EmbassyCryptoProvider<embedded_tls::Aes256GcmSha384> {
-    type CipherSuite = embedded_tls::Aes256GcmSha384;
+impl CryptoProvider for EmbassyCryptoProvider<Aes256GcmSha384> {
+    type CipherSuite = Aes256GcmSha384;
     type Signature = heapless::Vec<u8, 128>;
     type Hash = EmbassyHash384;
     type Hmac = EmbassyHmac384;
     type Aead = EmbassyAead256;
 
-    fn rng(&mut self) -> impl rand_core::CryptoRngCore {
-        unimplemented!("EmbassyCryptoProvider does not provide RNG; compose with another provider")
+    fn rng(&mut self) -> impl embedded_tls::CryptoRngCore {
+        struct NoRng;
+        impl rand_core::RngCore for NoRng {
+            fn next_u32(&mut self) -> u32 { panic!("no rng") }
+            fn next_u64(&mut self) -> u64 { panic!("no rng") }
+            fn fill_bytes(&mut self, _dest: &mut [u8]) { panic!("no rng") }
+            fn try_fill_bytes(&mut self, _dest: &mut [u8]) -> Result<(), rand_core::Error> {
+                panic!("no rng")
+            }
+        }
+        impl rand_core::CryptoRng for NoRng {}
+        NoRng
     }
 
     fn aead(&mut self, key: &[u8]) -> Result<Self::Aead, TlsError> {
@@ -340,7 +334,7 @@ impl embedded_tls::CryptoProvider for EmbassyCryptoProvider<embedded_tls::Aes256
 
     fn ecdh(
         &mut self,
-        _group: embedded_tls::extensions::extension_data::supported_groups::NamedGroup,
+        _group: NamedGroup,
         _secret_key: &[u8],
         _peer_public: &[u8],
         _shared_secret: &mut [u8],
@@ -350,7 +344,7 @@ impl embedded_tls::CryptoProvider for EmbassyCryptoProvider<embedded_tls::Aes256
 
     fn keygen(
         &mut self,
-        _group: embedded_tls::extensions::extension_data::supported_groups::NamedGroup,
+        _group: NamedGroup,
         _secret_key: &mut [u8],
         _public_key: &mut [u8],
     ) -> Result<(), TlsError> {

@@ -11,6 +11,8 @@ rust-version = "1.80"
 
 [dependencies]
 embassy-crypto = { path = "../embassy-crypto" }
-embedded-tls = { version = "0.1", default-features = false }
+embedded-tls = { git = "https://github.com/xoviat/embedded-tls", rev = "0a9613a", default-features = false }
 generic-array = { version = "0.14", default-features = false }
 typenum = { version = "1.17", default-features = false }
+heapless = { version = "0.8", default-features = false }
+rand_core = { version = "0.6", default-features = false }
