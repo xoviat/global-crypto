@@ -1,0 +1,16 @@
+[package]
+name = "embassy-crypto-embedded-tls"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "embedded-tls CryptoProvider backed by embassy-crypto"
+repository = "https://github.com/embassy-rs/embassy"
+keywords = ["embedded", "crypto", "tls", "embassy"]
+categories = ["embedded", "no-std", "cryptography"]
+rust-version = "1.80"
+
+[dependencies]
+embassy-crypto = { path = "../embassy-crypto" }
+embedded-tls = { version = "0.1", default-features = false }
+generic-array = { version = "0.14", default-features = false }
+typenum = { version = "1.17", default-features = false }
