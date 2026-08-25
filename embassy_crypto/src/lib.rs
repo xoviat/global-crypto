@@ -5,7 +5,7 @@ pub use embassy_crypto_driver::{
 };
 
 // ------------------------------------------------------------------
-// Blocking dispatch (thin wrapper around the driver)
+// Blocking dispatch (thin wrapper around the driver free function)
 // ------------------------------------------------------------------
 
 /// Dispatch a blocking operation to the linked crypto driver.
@@ -13,7 +13,7 @@ pub use embassy_crypto_driver::{
 /// Returns `Err(CryptoError::Unsupported)` if the driver does not
 /// provide an implementation.
 pub fn dispatch_blocking(op: BlockingOp<'_>) -> Result<(), CryptoError> {
-    match embassy_crypto_driver::CryptoDriver::dispatch_blocking(op) {
+    match embassy_crypto_driver::dispatch_blocking(op) {
         Some(Ok(())) => Ok(()),
         Some(Err(e)) => Err(e),
         None => Err(CryptoError::Unsupported),
@@ -43,7 +43,7 @@ impl Hash {
         if alg.is_hmac() {
             return Err(CryptoError::InvalidInput);
         }
-        let handle = embassy_crypto_driver::CryptoDriver::try_context_init(alg)?;
+        let handle = embassy_crypto_driver::try_context_init(alg)?;
         Ok(Self {
             handle,
             output_size: alg.digest_len(),
@@ -52,19 +52,19 @@ impl Hash {
 
     /// Feed more data into the hash.
     pub fn update(&mut self, data: &[u8]) -> Result<(), CryptoError> {
-        embassy_crypto_driver::CryptoDriver::try_context_update(self.handle, data)
+        embassy_crypto_driver::try_context_update(self.handle, data)
     }
 
     /// Reset the hash to its initial state.
     pub fn reset(&mut self) -> Result<(), CryptoError> {
-        embassy_crypto_driver::CryptoDriver::try_context_reset(self.handle)
+        embassy_crypto_driver::try_context_reset(self.handle)
     }
 
     /// Finalize the hash and write the digest into `out`.
     ///
     /// `out` must be at least [`Hash::output_size`] bytes long.
     pub fn finalize_into(self, out: &mut [u8]) -> Result<(), CryptoError> {
-        embassy_crypto_driver::CryptoDriver::try_context_finalize(self.handle, out)
+        embassy_crypto_driver::try_context_finalize(self.handle, out)
     }
 
     /// Digest length in bytes.
@@ -75,7 +75,7 @@ impl Hash {
 
 impl Clone for Hash {
     fn clone(&self) -> Self {
-        let handle = embassy_crypto_driver::CryptoDriver::try_context_clone(self.handle)
+        let handle = embassy_crypto_driver::try_context_clone(self.handle)
             .expect("embassy_crypto: failed to clone hash context");
         Self {
             handle,
@@ -107,7 +107,7 @@ impl Hmac {
         if !alg.is_hmac() {
             return Err(CryptoError::InvalidInput);
         }
-        let handle = embassy_crypto_driver::CryptoDriver::try_context_init(alg)?;
+        let handle = embassy_crypto_driver::try_context_init(alg)?;
         Ok(Self {
             handle,
             output_size: alg.digest_len(),
@@ -116,14 +116,14 @@ impl Hmac {
 
     /// Feed more data into the HMAC.
     pub fn update(&mut self, data: &[u8]) -> Result<(), CryptoError> {
-        embassy_crypto_driver::CryptoDriver::try_context_update(self.handle, data)
+        embassy_crypto_driver::try_context_update(self.handle, data)
     }
 
     /// Finalize the HMAC and write the tag into `out`.
     ///
     /// `out` must be at least [`Hmac::output_size`] bytes long.
     pub fn finalize_into(self, out: &mut [u8]) -> Result<(), CryptoError> {
-        embassy_crypto_driver::CryptoDriver::try_context_finalize(self.handle, out)
+        embassy_crypto_driver::try_context_finalize(self.handle, out)
     }
 
     /// Tag length in bytes.
@@ -134,7 +134,7 @@ impl Hmac {
 
 impl Clone for Hmac {
     fn clone(&self) -> Self {
-        let handle = embassy_crypto_driver::CryptoDriver::try_context_clone(self.handle)
+        let handle = embassy_crypto_driver::try_context_clone(self.handle)
             .expect("embassy_crypto: failed to clone hmac context");
         Self {
             handle,
