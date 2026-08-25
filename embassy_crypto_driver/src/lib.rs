@@ -1,5 +1,5 @@
 #![no_std]
-#![doc = "Global cryptography backend unitrait."]
+#![doc = "Global cryptography backend unitrait and types."]
 
 use core::fmt;
 
@@ -36,8 +36,6 @@ impl fmt::Display for CryptoError {
 // ------------------------------------------------------------------
 
 /// Hash or HMAC algorithm selection for streaming operations.
-///
-/// HMAC variants carry the key reference; hash variants do not.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Algorithm<'a> {
     SHA1,
@@ -77,6 +75,20 @@ impl Algorithm<'_> {
             Self::HmacSha256 { .. } | Self::HmacSha384 { .. } | Self::HmacSha512 { .. } => true,
             _ => false,
         }
+    }
+}
+
+// ------------------------------------------------------------------
+// HashContext
+// ------------------------------------------------------------------
+
+/// Opaque context buffer for streaming hash operations.
+#[derive(Clone, Copy)]
+pub struct HashContext(pub [u8; 256]);
+
+impl Default for HashContext {
+    fn default() -> Self {
+        Self([0u8; 256])
     }
 }
 
@@ -191,14 +203,16 @@ unitrait::unitrait! {
         pub fn dispatch_blocking(op: BlockingOp<'_>) -> Option<Result<(), CryptoError>>;
 
         /// Initialize a streaming hash or HMAC context.
-        ///
-        /// For HMAC variants the key is carried inside `Algorithm`.
         #[symbol = "_embassy_crypto_try_context_init"]
         pub fn try_context_init(op: Algorithm<'_>) -> Result<ContextHandle, CryptoError>;
 
         /// Update a streaming hash or HMAC context with more data.
         #[symbol = "_embassy_crypto_try_context_update"]
         pub fn try_context_update(handle: ContextHandle, data: &[u8]) -> Result<(), CryptoError>;
+
+        /// Clone an existing streaming hash or HMAC context.
+        #[symbol = "_embassy_crypto_try_context_clone"]
+        pub fn try_context_clone(handle: ContextHandle) -> Result<ContextHandle, CryptoError>;
 
         /// Finalize a streaming hash or HMAC context and write the digest.
         #[symbol = "_embassy_crypto_try_context_finalize"]

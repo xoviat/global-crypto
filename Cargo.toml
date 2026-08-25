@@ -1,13 +1,3 @@
-[package]
-name = "embassy_crypto"
-version = "0.1.0"
-edition = "2021"
-license = "MIT OR Apache-2.0"
-description = "Unitrait for global cryptography backend"
-repository = "https://github.com/embassy-rs/embassy"
-keywords = ["embedded", "crypto", "unitrait"]
-categories = ["embedded", "no-std", "cryptography"]
-rust-version = "1.80"
-
-[dependencies]
-unitrait = "1.0"
+[workspace]
+members = ["embassy_crypto_driver", "embassy_crypto"]
+resolver = "2"

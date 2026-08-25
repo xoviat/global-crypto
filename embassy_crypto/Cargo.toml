@@ -1,0 +1,26 @@
+[package]
+name = "embassy_crypto"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "Global cryptography backend with software fallback"
+repository = "https://github.com/embassy-rs/embassy"
+keywords = ["embedded", "crypto", "unitrait"]
+categories = ["embedded", "no-std", "cryptography"]
+rust-version = "1.80"
+
+[dependencies]
+embassy_crypto_driver = { path = "../embassy_crypto_driver" }
+aes = { version = "0.8", default-features = false }
+aes-gcm = { version = "0.10", default-features = false, features = ["aes"] }
+ccm = { version = "0.5", default-features = false }
+cmac = { version = "0.7", default-features = false }
+cipher = { version = "0.4", default-features = false }
+aead = { version = "0.5", default-features = false }
+digest = { version = "0.10", default-features = false }
+generic-array = { version = "0.14", default-features = false }
+sha1 = { version = "0.10", default-features = false }
+sha2 = { version = "0.10", default-features = false }
+md-5 = { version = "0.10", default-features = false }
+hmac = { version = "0.12", default-features = false }
+spin = { version = "0.9", default-features = false, features = ["mutex"] }
