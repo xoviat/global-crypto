@@ -81,22 +81,6 @@ impl Algorithm<'_> {
 }
 
 // ------------------------------------------------------------------
-// HashContext
-// ------------------------------------------------------------------
-
-/// Opaque context buffer for streaming hash operations.
-///
-/// Drivers interpret the contents; the framework only stores and retrieves it.
-#[derive(Clone, Copy)]
-pub struct HashContext(pub [u8; 256]);
-
-impl Default for HashContext {
-    fn default() -> Self {
-        Self([0u8; 256])
-    }
-}
-
-// ------------------------------------------------------------------
 // ContextHandle
 // ------------------------------------------------------------------
 
