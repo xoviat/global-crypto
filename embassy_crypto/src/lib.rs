@@ -74,95 +74,137 @@ define_hash!(Sha512, Algorithm::SHA512, 64);
 // HMAC types
 // ------------------------------------------------------------------
 
-/// Streaming HMAC-SHA-256 context backed by the linked crypto driver.
-#[derive(Clone)]
-pub struct HmacSha256 {
-    handle: ContextHandle,
+macro_rules! define_hmac {
+    ($(#[$meta:meta])* $name:ident, $hash:ident, $algo:ident, $out:expr, $block:expr) => {
+        const _: () = {
+            #[cfg(feature = "software-hmac")]
+            #[derive(Clone)]
+            enum Inner {
+                Driver(ContextHandle),
+                Software {
+                    hash: $hash,
+                    key_opad: [u8; $block],
+                },
+            }
+
+            $(#[$meta])*
+            #[derive(Clone)]
+            pub struct $name {
+                #[cfg(not(feature = "software-hmac"))]
+                handle: ContextHandle,
+                #[cfg(feature = "software-hmac")]
+                inner: Inner,
+            }
+
+            impl $name {
+                /// Create a new HMAC context with the given key.
+                ///
+                /// Tries the driver's native HMAC first. If the driver reports
+                /// `Unsupported`, falls back to a software HMAC built on top
+                /// of the driver's hash acceleration (requires the `software-hmac`
+                /// feature).
+                pub fn new_from_slice(key: &[u8]) -> Result<Self, CryptoError> {
+                    // Try driver-native HMAC.
+                    match embassy_crypto_driver::try_context_init(Algorithm::$algo { key }) {
+                        Ok(handle) => {
+                            #[cfg(not(feature = "software-hmac"))]
+                            return Ok(Self { handle });
+                            #[cfg(feature = "software-hmac")]
+                            return Ok(Self { inner: Inner::Driver(handle) });
+                        }
+                        Err(CryptoError::Unsupported) => {}
+                        Err(e) => return Err(e),
+                    }
+
+                    #[cfg(feature = "software-hmac")]
+                    {
+                        // Fallback: software HMAC using driver-accelerated hash.
+                        let mut hash = $hash::new()?;
+                        let mut key_padded = [0u8; $block];
+
+                        if key.len() > $block {
+                            // Hash the key first, then pad the digest.
+                            hash.update(key)?;
+                            let mut key_hash = [0u8; $out];
+                            hash.finalize_into(&mut key_hash)?;
+                            key_padded[..$out].copy_from_slice(&key_hash);
+                            hash = $hash::new()?;
+                        } else {
+                            key_padded[..key.len()].copy_from_slice(key);
+                        }
+
+                        let mut key_ipad = key_padded;
+                        for b in &mut key_ipad {
+                            *b ^= 0x36;
+                        }
+                        let mut key_opad = key_padded;
+                        for b in &mut key_opad {
+                            *b ^= 0x5C;
+                        }
+
+                        hash.update(&key_ipad)?;
+
+                        Ok(Self {
+                            inner: Inner::Software { hash, key_opad },
+                        })
+                    }
+
+                    #[cfg(not(feature = "software-hmac"))]
+                    Err(CryptoError::Unsupported)
+                }
+
+                /// Feed more data into the HMAC.
+                pub fn update(&mut self, data: &[u8]) -> Result<(), CryptoError> {
+                    #[cfg(not(feature = "software-hmac"))]
+                    {
+                        embassy_crypto_driver::try_context_update(self.handle, data)
+                    }
+                    #[cfg(feature = "software-hmac")]
+                    {
+                        match &mut self.inner {
+                            Inner::Driver(handle) => {
+                                embassy_crypto_driver::try_context_update(*handle, data)
+                            }
+                            Inner::Software { hash, .. } => hash.update(data),
+                        }
+                    }
+                }
+
+                /// Finalize the HMAC and write the tag into `out`.
+                ///
+                /// `out` must be at least [`$name::output_size`] bytes long.
+                pub fn finalize_into(self, out: &mut [u8]) -> Result<(), CryptoError> {
+                    #[cfg(not(feature = "software-hmac"))]
+                    {
+                        embassy_crypto_driver::try_context_finalize(self.handle, out)
+                    }
+                    #[cfg(feature = "software-hmac")]
+                    {
+                        match self.inner {
+                            Inner::Driver(handle) => {
+                                embassy_crypto_driver::try_context_finalize(handle, out)
+                            }
+                            Inner::Software { hash, key_opad } => {
+                                let mut inner = [0u8; $out];
+                                hash.finalize_into(&mut inner)?;
+                                let mut outer = $hash::new()?;
+                                outer.update(&key_opad)?;
+                                outer.update(&inner)?;
+                                outer.finalize_into(out)
+                            }
+                        }
+                    }
+                }
+
+                /// Tag length in bytes.
+                pub const fn output_size() -> usize {
+                    $out
+                }
+            }
+        };
+    };
 }
 
-impl HmacSha256 {
-    /// Create a new HMAC-SHA-256 context with the given key.
-    pub fn new_from_slice(key: &[u8]) -> Result<Self, CryptoError> {
-        let handle = embassy_crypto_driver::try_context_init(Algorithm::HmacSha256 { key })?;
-        Ok(Self { handle })
-    }
-
-    /// Feed more data into the HMAC.
-    pub fn update(&mut self, data: &[u8]) -> Result<(), CryptoError> {
-        embassy_crypto_driver::try_context_update(self.handle, data)
-    }
-
-    /// Finalize the HMAC and write the tag into `out`.
-    ///
-    /// `out` must be at least 32 bytes long.
-    pub fn finalize_into(self, out: &mut [u8]) -> Result<(), CryptoError> {
-        embassy_crypto_driver::try_context_finalize(self.handle, out)
-    }
-
-    /// Tag length in bytes.
-    pub const fn output_size() -> usize {
-        32
-    }
-}
-
-/// Streaming HMAC-SHA-384 context backed by the linked crypto driver.
-#[derive(Clone)]
-pub struct HmacSha384 {
-    handle: ContextHandle,
-}
-
-impl HmacSha384 {
-    /// Create a new HMAC-SHA-384 context with the given key.
-    pub fn new_from_slice(key: &[u8]) -> Result<Self, CryptoError> {
-        let handle = embassy_crypto_driver::try_context_init(Algorithm::HmacSha384 { key })?;
-        Ok(Self { handle })
-    }
-
-    /// Feed more data into the HMAC.
-    pub fn update(&mut self, data: &[u8]) -> Result<(), CryptoError> {
-        embassy_crypto_driver::try_context_update(self.handle, data)
-    }
-
-    /// Finalize the HMAC and write the tag into `out`.
-    ///
-    /// `out` must be at least 48 bytes long.
-    pub fn finalize_into(self, out: &mut [u8]) -> Result<(), CryptoError> {
-        embassy_crypto_driver::try_context_finalize(self.handle, out)
-    }
-
-    /// Tag length in bytes.
-    pub const fn output_size() -> usize {
-        48
-    }
-}
-
-/// Streaming HMAC-SHA-512 context backed by the linked crypto driver.
-#[derive(Clone)]
-pub struct HmacSha512 {
-    handle: ContextHandle,
-}
-
-impl HmacSha512 {
-    /// Create a new HMAC-SHA-512 context with the given key.
-    pub fn new_from_slice(key: &[u8]) -> Result<Self, CryptoError> {
-        let handle = embassy_crypto_driver::try_context_init(Algorithm::HmacSha512 { key })?;
-        Ok(Self { handle })
-    }
-
-    /// Feed more data into the HMAC.
-    pub fn update(&mut self, data: &[u8]) -> Result<(), CryptoError> {
-        embassy_crypto_driver::try_context_update(self.handle, data)
-    }
-
-    /// Finalize the HMAC and write the tag into `out`.
-    ///
-    /// `out` must be at least 64 bytes long.
-    pub fn finalize_into(self, out: &mut [u8]) -> Result<(), CryptoError> {
-        embassy_crypto_driver::try_context_finalize(self.handle, out)
-    }
-
-    /// Tag length in bytes.
-    pub const fn output_size() -> usize {
-        64
-    }
-}
+define_hmac!(HmacSha256, Sha256, HmacSha256, 32, 64);
+define_hmac!(HmacSha384, Sha384, HmacSha384, 48, 128);
+define_hmac!(HmacSha512, Sha512, HmacSha512, 64, 128);
