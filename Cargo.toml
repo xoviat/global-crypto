@@ -1,3 +1,50 @@
-[workspace]
-members = ["global-crypto", "global-crypto-embedded-cal", "examples"]
-resolver = "2"
+[package]
+name = "accelerated-crypto"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+description = "RustCrypto trait implementations backed by `embassy-crypto`, for hardware-accelerated, link-time pluggable cryptography."
+repository = "https://github.com/embassy-rs/embassy"
+categories = [
+    "embedded",
+    "no-std",
+    "cryptography",
+]
+
+[dependencies]
+# The new embassy-crypto (driver-trait API from main branch).
+embassy-crypto = { git = "https://github.com/embassy-rs/embassy", branch = "main" }
+
+digest = { version = "0.11", default-features = false, features = ["mac", "zeroize"] }
+crypto-common = "0.2"
+cipher = { version = "0.5", default-features = false }
+aead = { version = "0.6", default-features = false }
+generic-array = "1.4.5"
+
+# Software field/scalar arithmetic for the `ec` module's non-accelerated
+# operations and wire formats (optional, enabled by the features below).
+elliptic-curve = { version = "0.14", default-features = false, features = ["arithmetic", "sec1"], optional = true }
+ecdsa = { version = "0.17", default-features = false, features = ["digest", "algorithm"], optional = true }
+p256 = { version = "0.14", default-features = false, features = ["arithmetic"], optional = true }
+p384 = { version = "0.14", default-features = false, features = ["arithmetic"], optional = true }
+
+[features]
+defmt = ["embassy-crypto/defmt"]
+
+## Generic RustCrypto `elliptic-curve` trait implementations over the
+## `embassy-crypto`-accelerated curve backends (the `ec` module).
+ec = ["dep:elliptic-curve"]
+## ECDSA support for the `ec` module.
+ecdsa = ["ec", "dep:ecdsa"]
+## The `ec` module instantiated for P-256: scalar multiplication, inversion
+## and linear combination served by `embassy-crypto`'s P-256 arithmetic driver.
+p256 = ["ec", "dep:p256"]
+## ECDSA signing/verification types for the `p256` module.
+p256-ecdsa = ["p256", "ecdsa", "p256/ecdsa"]
+## The `ec` module instantiated for P-384, accelerated like `p256`.
+p384 = ["ec", "dep:p384"]
+## ECDSA signing/verification types for the `p384` module.
+p384-ecdsa = ["p384", "ecdsa", "p384/ecdsa"]
+## PKCS#8/SPKI support: `AssociatedOid` impls for the accelerated curve
+## types, unlocking DER encoding of keys.
+pkcs8 = ["ec", "elliptic-curve/pkcs8", "p256?/pkcs8", "p384?/pkcs8"]
